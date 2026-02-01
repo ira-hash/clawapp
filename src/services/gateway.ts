@@ -3,9 +3,11 @@
  * 
  * WebSocket client implementing the Gateway Protocol v3
  * https://docs.clawd.bot/gateway/protocol
+ * 
+ * Supports multiple chat rooms via session labels
  */
 
-import { GatewayConfig, Message, WSMessage } from '../types';
+import { GatewayConfig, WSMessage } from '../types';
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
 
@@ -51,13 +53,13 @@ class GatewayService {
   private reconnectDelay = 1000;
   private deviceId: string | null = null;
   private isConnected = false;
+  private currentRoomId: string | null = null;
 
   constructor() {
     this.generateDeviceId();
   }
 
   private async generateDeviceId() {
-    // Generate a stable device ID
     try {
       const installId = await Application.getInstallationIdAsync();
       this.deviceId = `claw-${Platform.OS}-${installId?.slice(0, 8) || Date.now()}`;
@@ -78,12 +80,10 @@ class GatewayService {
     
     return new Promise((resolve, reject) => {
       try {
-        // Convert HTTP URL to WebSocket URL
         let wsUrl = config.url
           .replace('https://', 'wss://')
           .replace('http://', 'ws://');
         
-        // Remove trailing slash
         wsUrl = wsUrl.replace(/\/$/, '');
         
         console.log('[Gateway] Connecting to:', wsUrl);
@@ -216,6 +216,7 @@ class GatewayService {
       case 'agent.thinking':
         this.notifyMessageHandlers({
           type: 'thinking',
+          sessionKey: this.currentRoomId || undefined,
           payload: { isThinking: true, content: event.payload?.content },
         });
         break;
@@ -232,15 +233,15 @@ class GatewayService {
    */
   private handleAgentEvent(payload: any): void {
     if (payload.status === 'streaming') {
-      // Streaming started
       this.notifyMessageHandlers({
         type: 'typing',
+        sessionKey: this.currentRoomId || undefined,
         payload: { isTyping: true },
       });
     } else if (payload.status === 'complete' || payload.status === 'done') {
-      // Final response
       this.notifyMessageHandlers({
         type: 'message',
+        sessionKey: this.currentRoomId || undefined,
         payload: {
           content: payload.content || payload.text || payload.summary,
           buttons: payload.buttons,
@@ -248,9 +249,9 @@ class GatewayService {
         },
       });
     } else if (payload.content || payload.text) {
-      // Message content
       this.notifyMessageHandlers({
         type: 'message',
+        sessionKey: this.currentRoomId || undefined,
         payload: {
           content: payload.content || payload.text,
           buttons: payload.buttons,
@@ -266,6 +267,7 @@ class GatewayService {
   private handleStreamEvent(payload: any): void {
     this.notifyMessageHandlers({
       type: 'stream',
+      sessionKey: this.currentRoomId || undefined,
       payload: {
         delta: payload.delta || payload.chunk || '',
       },
@@ -315,19 +317,39 @@ class GatewayService {
     this.config = null;
     this.isConnected = false;
     this.pendingRequests.clear();
+    this.currentRoomId = null;
+  }
+
+  /**
+   * Set current room for message routing
+   */
+  setCurrentRoom(roomId: string | null): void {
+    this.currentRoomId = roomId;
+  }
+
+  /**
+   * Get current room ID
+   */
+  getCurrentRoom(): string | null {
+    return this.currentRoomId;
   }
 
   /**
    * Send a message to the agent
+   * Uses sessionKey/label for room-specific context
    */
-  async sendMessage(content: string): Promise<void> {
+  async sendMessage(content: string, roomId?: string): Promise<void> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('Not connected');
     }
     
+    const effectiveRoomId = roomId || this.currentRoomId || 'default';
+    
     try {
       const response = await this.sendRequest('agent', {
         message: content,
+        // Use room ID as session label for context separation
+        label: `claw-room-${effectiveRoomId}`,
         idempotencyKey: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       });
       
@@ -343,9 +365,8 @@ class GatewayService {
   /**
    * Send a button callback
    */
-  async sendButtonCallback(callbackData: string): Promise<void> {
-    // Button callbacks are sent as regular messages
-    await this.sendMessage(callbackData);
+  async sendButtonCallback(callbackData: string, roomId?: string): Promise<void> {
+    await this.sendMessage(callbackData, roomId);
   }
 
   /**

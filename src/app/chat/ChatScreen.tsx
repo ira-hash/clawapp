@@ -3,11 +3,11 @@
  * 
  * Main chat interface for communicating with Clawdbot agent
  * Features:
+ * - Room-based message isolation
  * - Message history persistence
  * - Dark mode support
  * - Image sending
  * - Message copy (long press)
- * - Proper keyboard handling
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -25,18 +25,18 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { MessageBubble, ChatInput } from '../../components/chat';
 import { gateway } from '../../services/gateway';
-import { clearSession } from '../../services/pairing';
-import { saveMessages, loadMessages } from '../../services/storage';
+import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Message, WSMessage } from '../../types';
 
 interface ChatScreenProps {
-  agentId?: string;
-  agentName?: string;
-  onDisconnect: () => void;
+  roomId: string;
+  roomName: string;
+  roomEmoji: string;
+  onBack: () => void;
 }
 
-export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisconnect }: ChatScreenProps) {
+export function ChatScreen({ roomId, roomName, roomEmoji, onBack }: ChatScreenProps) {
   const { theme, isDark } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(true);
@@ -47,18 +47,34 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
 
   // Load message history on mount
   useEffect(() => {
-    loadMessages(agentId).then((savedMessages) => {
+    loadMessages(roomId).then((savedMessages) => {
       setMessages(savedMessages);
       setIsLoading(false);
     });
-  }, [agentId]);
+    
+    // Set current room in gateway
+    gateway.setCurrentRoom(roomId);
+    
+    return () => {
+      gateway.setCurrentRoom(null);
+    };
+  }, [roomId]);
 
   // Save messages when they change
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
-      saveMessages(agentId, messages);
+      saveMessages(roomId, messages);
+      
+      // Update room's last message preview
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg) {
+        updateRoom(roomId, {
+          lastMessage: lastMsg.content.slice(0, 50),
+          lastMessageAt: lastMsg.timestamp,
+        });
+      }
     }
-  }, [messages, agentId, isLoading]);
+  }, [messages, roomId, isLoading]);
 
   // Subscribe to gateway events
   useEffect(() => {
@@ -67,6 +83,10 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
     });
 
     const unsubMessages = gateway.onMessage((wsMessage: WSMessage) => {
+      // Only process messages for this room
+      if (wsMessage.sessionKey && wsMessage.sessionKey !== roomId) {
+        return;
+      }
       handleWSMessage(wsMessage);
     });
 
@@ -74,7 +94,7 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
       unsubConnection();
       unsubMessages();
     };
-  }, []);
+  }, [roomId]);
 
   const handleWSMessage = useCallback((wsMessage: WSMessage) => {
     switch (wsMessage.type) {
@@ -139,8 +159,8 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Send to gateway
-    gateway.sendMessage(text);
+    // Send to gateway with room ID
+    gateway.sendMessage(text, roomId);
 
     // Update status
     setMessages(prev => 
@@ -149,13 +169,7 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
   };
 
   const handleButtonPress = (callbackData: string) => {
-    gateway.sendButtonCallback(callbackData);
-  };
-
-  const handleDisconnect = async () => {
-    gateway.disconnect();
-    await clearSession();
-    onDisconnect();
+    gateway.sendButtonCallback(callbackData, roomId);
   };
 
   const scrollToBottom = () => {
@@ -176,13 +190,21 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
 
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-      <View style={styles.headerLeft}>
-        <View style={[styles.statusDot, isConnected ? styles.connected : styles.disconnected]} />
-        <Text style={[styles.headerTitle, { color: theme.text }]}>🦞 {agentName}</Text>
-      </View>
-      <TouchableOpacity onPress={handleDisconnect} style={styles.disconnectButton}>
-        <Ionicons name="log-out-outline" size={24} color={theme.error} />
+      <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <Ionicons name="chevron-back" size={28} color={theme.primary} />
       </TouchableOpacity>
+      <View style={styles.headerCenter}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          {roomEmoji} {roomName}
+        </Text>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusDot, isConnected ? styles.connected : styles.disconnected]} />
+          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
+            {isConnected ? 'Connected' : 'Reconnecting...'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.headerRight} />
     </View>
   );
 
@@ -208,10 +230,10 @@ export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisc
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyEmoji}>🦞</Text>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>Connected!</Text>
+      <Text style={styles.emptyEmoji}>{roomEmoji}</Text>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>{roomName}</Text>
       <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-        Start chatting with your Clawdbot agent
+        Start a conversation in this room
       </Text>
     </View>
   );
@@ -272,22 +294,34 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 + 12 : 12,
+    paddingTop: Platform.OS === 'ios' ? 12 : (StatusBar.currentHeight || 0) + 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
+  backButton: {
+    padding: 4,
+    width: 44,
+  },
+  headerCenter: {
+    flex: 1,
     alignItems: 'center',
   },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
   statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
   },
   connected: {
     backgroundColor: '#34C759',
@@ -295,12 +329,11 @@ const styles = StyleSheet.create({
   disconnected: {
     backgroundColor: '#FF3B30',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+  statusText: {
+    fontSize: 12,
   },
-  disconnectButton: {
-    padding: 4,
+  headerRight: {
+    width: 44,
   },
   reconnectBanner: {
     flexDirection: 'row',

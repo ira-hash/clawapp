@@ -1,27 +1,87 @@
 /**
  * Local Storage Service
  * 
- * Handles persistent storage for messages, settings, etc.
+ * Handles persistent storage for messages, rooms, settings
  * No external server required - all data stays on device.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Message } from '../types';
+import { Message, ChatRoom } from '../types';
 
 const KEYS = {
   MESSAGES: 'claw_messages_',
+  ROOMS: 'claw_rooms',
   SETTINGS: 'claw_settings',
   THEME: 'claw_theme',
 };
 
+// ============ Chat Rooms ============
+
+/**
+ * Load all chat rooms
+ */
+export async function loadRooms(): Promise<ChatRoom[]> {
+  try {
+    const data = await AsyncStorage.getItem(KEYS.ROOMS);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('[Storage] Failed to load rooms:', e);
+  }
+  return [];
+}
+
+/**
+ * Save all chat rooms
+ */
+export async function saveRooms(rooms: ChatRoom[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.ROOMS, JSON.stringify(rooms));
+  } catch (e) {
+    console.error('[Storage] Failed to save rooms:', e);
+  }
+}
+
+/**
+ * Add a new chat room
+ */
+export async function addRoom(room: ChatRoom): Promise<void> {
+  const rooms = await loadRooms();
+  rooms.push(room);
+  await saveRooms(rooms);
+}
+
+/**
+ * Update a chat room
+ */
+export async function updateRoom(roomId: string, updates: Partial<ChatRoom>): Promise<void> {
+  const rooms = await loadRooms();
+  const index = rooms.findIndex(r => r.id === roomId);
+  if (index !== -1) {
+    rooms[index] = { ...rooms[index], ...updates };
+    await saveRooms(rooms);
+  }
+}
+
+/**
+ * Delete a chat room and its messages
+ */
+export async function deleteRoom(roomId: string): Promise<void> {
+  const rooms = await loadRooms();
+  const filtered = rooms.filter(r => r.id !== roomId);
+  await saveRooms(filtered);
+  await clearMessages(roomId);
+}
+
 // ============ Message History ============
 
 /**
- * Save messages for a specific agent/session
+ * Save messages for a specific room
  */
-export async function saveMessages(agentId: string, messages: Message[]): Promise<void> {
+export async function saveMessages(roomId: string, messages: Message[]): Promise<void> {
   try {
-    const key = KEYS.MESSAGES + agentId;
+    const key = KEYS.MESSAGES + roomId;
     // Keep last 500 messages to prevent storage bloat
     const trimmed = messages.slice(-500);
     await AsyncStorage.setItem(key, JSON.stringify(trimmed));
@@ -31,11 +91,11 @@ export async function saveMessages(agentId: string, messages: Message[]): Promis
 }
 
 /**
- * Load messages for a specific agent/session
+ * Load messages for a specific room
  */
-export async function loadMessages(agentId: string): Promise<Message[]> {
+export async function loadMessages(roomId: string): Promise<Message[]> {
   try {
-    const key = KEYS.MESSAGES + agentId;
+    const key = KEYS.MESSAGES + roomId;
     const data = await AsyncStorage.getItem(key);
     if (data) {
       return JSON.parse(data);
@@ -47,29 +107,14 @@ export async function loadMessages(agentId: string): Promise<Message[]> {
 }
 
 /**
- * Clear messages for a specific agent
+ * Clear messages for a specific room
  */
-export async function clearMessages(agentId: string): Promise<void> {
+export async function clearMessages(roomId: string): Promise<void> {
   try {
-    const key = KEYS.MESSAGES + agentId;
+    const key = KEYS.MESSAGES + roomId;
     await AsyncStorage.removeItem(key);
   } catch (e) {
     console.error('[Storage] Failed to clear messages:', e);
-  }
-}
-
-/**
- * Get all stored agent IDs
- */
-export async function getStoredAgentIds(): Promise<string[]> {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    return keys
-      .filter(k => k.startsWith(KEYS.MESSAGES))
-      .map(k => k.replace(KEYS.MESSAGES, ''));
-  } catch (e) {
-    console.error('[Storage] Failed to get agent IDs:', e);
-    return [];
   }
 }
 
@@ -115,18 +160,6 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
   } catch (e) {
     console.error('[Storage] Failed to save settings:', e);
   }
-}
-
-/**
- * Update specific setting
- */
-export async function updateSetting<K extends keyof AppSettings>(
-  key: K,
-  value: AppSettings[K]
-): Promise<void> {
-  const settings = await loadSettings();
-  settings[key] = value;
-  await saveSettings(settings);
 }
 
 // ============ Theme ============

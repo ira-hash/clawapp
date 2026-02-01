@@ -21,7 +21,7 @@ export interface MessageMetadata {
   thinkingContent?: string;
   buttons?: InlineButton[][];
   canvas?: CanvasContent;
-  media?: MediaAttachment[];
+  media?: string; // Image URI or base64
   codeBlocks?: CodeBlock[];
 }
 
@@ -39,19 +39,22 @@ export interface CanvasContent {
   title?: string;
 }
 
-export interface MediaAttachment {
-  type: 'image' | 'audio' | 'video' | 'file' | 'voice';
-  url: string;
-  mimeType?: string;
-  filename?: string;
-  size?: number;
-  duration?: number;  // For audio/video
-  thumbnail?: string;
-}
-
 export interface CodeBlock {
   language: string;
   code: string;
+}
+
+// Chat Room (Session) Types
+export interface ChatRoom {
+  id: string;
+  name: string;
+  emoji: string;
+  sessionKey?: string; // Gateway session key
+  createdAt: number;
+  lastMessageAt?: number;
+  lastMessage?: string;
+  unreadCount: number;
+  isPinned?: boolean;
 }
 
 // Agent Types
@@ -83,6 +86,7 @@ export interface PairingQR {
 // WebSocket Types
 export interface WSMessage {
   type: 'message' | 'typing' | 'thinking' | 'stream' | 'buttons' | 'canvas' | 'error' | 'connected' | 'disconnected';
+  sessionKey?: string; // Which room this message belongs to
   payload: any;
 }
 

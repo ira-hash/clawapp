@@ -2,6 +2,7 @@
  * Claw - Clawdbot Native App
  * 
  * Main application entry point with navigation
+ * Supports multiple chat rooms per agent connection
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,22 +15,25 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
 // Screens
 import { PairingScreen } from './src/app/auth/PairingScreen';
+import { RoomListScreen } from './src/app/rooms/RoomListScreen';
 import { ChatScreen } from './src/app/chat/ChatScreen';
 
 // Services
 import { gateway } from './src/services/gateway';
 import { loadSession, saveSession, clearSession } from './src/services/pairing';
+import { updateRoom, loadRooms } from './src/services/storage';
 
 // Types
-import { GatewayConfig } from './src/types';
+import { GatewayConfig, ChatRoom } from './src/types';
 
-type Screen = 'loading' | 'pairing' | 'chat';
+type Screen = 'loading' | 'pairing' | 'rooms' | 'chat';
 
 function AppContent() {
   const { theme, isDark } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>('loading');
   const [config, setConfig] = useState<GatewayConfig | null>(null);
   const [agentName, setAgentName] = useState<string>('Clawdbot');
+  const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -39,7 +43,7 @@ function AppContent() {
         setAgentName(saved.name || 'Clawdbot');
         // Auto-connect
         gateway.connect(saved.config)
-          .then(() => setCurrentScreen('chat'))
+          .then(() => setCurrentScreen('rooms'))
           .catch(() => setCurrentScreen('pairing'));
       } else {
         setCurrentScreen('pairing');
@@ -52,14 +56,37 @@ function AppContent() {
     setConfig(newConfig);
     setAgentName(name || 'Clawdbot');
     await saveSession(newConfig, name);
+    setCurrentScreen('rooms');
+  }, []);
+
+  // Handle room selection
+  const handleSelectRoom = useCallback((room: ChatRoom) => {
+    setCurrentRoom(room);
+    gateway.setCurrentRoom(room.id);
     setCurrentScreen('chat');
   }, []);
 
-  // Handle disconnect
+  // Handle back from chat to room list
+  const handleBackToRooms = useCallback(async () => {
+    // Update last message preview in room
+    if (currentRoom) {
+      const rooms = await loadRooms();
+      const updated = rooms.find(r => r.id === currentRoom.id);
+      if (updated) {
+        await updateRoom(currentRoom.id, { lastMessageAt: Date.now() });
+      }
+    }
+    gateway.setCurrentRoom(null);
+    setCurrentRoom(null);
+    setCurrentScreen('rooms');
+  }, [currentRoom]);
+
+  // Handle full disconnect
   const handleDisconnect = useCallback(async () => {
     gateway.disconnect();
     await clearSession();
     setConfig(null);
+    setCurrentRoom(null);
     setCurrentScreen('pairing');
   }, []);
 
@@ -75,15 +102,27 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.background }]}>
-      {currentScreen === 'pairing' ? (
+      {currentScreen === 'pairing' && (
         <PairingScreen onPaired={handlePaired} />
-      ) : (
-        <ChatScreen
-          agentId={config?.agentId || 'default'}
+      )}
+      
+      {currentScreen === 'rooms' && (
+        <RoomListScreen
           agentName={agentName}
+          onSelectRoom={handleSelectRoom}
           onDisconnect={handleDisconnect}
         />
       )}
+      
+      {currentScreen === 'chat' && currentRoom && (
+        <ChatScreen
+          roomId={currentRoom.id}
+          roomName={currentRoom.name}
+          roomEmoji={currentRoom.emoji}
+          onBack={handleBackToRooms}
+        />
+      )}
+      
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </GestureHandlerRootView>
   );
