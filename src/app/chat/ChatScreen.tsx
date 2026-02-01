@@ -2,6 +2,12 @@
  * Chat Screen
  * 
  * Main chat interface for communicating with Clawdbot agent
+ * Features:
+ * - Message history persistence
+ * - Dark mode support
+ * - Image sending
+ * - Message copy (long press)
+ * - Proper keyboard handling
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -13,31 +19,53 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MessageBubble, ChatInput } from '../../components/chat';
 import { gateway } from '../../services/gateway';
 import { clearSession } from '../../services/pairing';
+import { saveMessages, loadMessages } from '../../services/storage';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Message, WSMessage } from '../../types';
 
 interface ChatScreenProps {
+  agentId?: string;
+  agentName?: string;
   onDisconnect: () => void;
 }
 
-export function ChatScreen({ onDisconnect }: ChatScreenProps) {
+export function ChatScreen({ agentId = 'default', agentName = 'Clawdbot', onDisconnect }: ChatScreenProps) {
+  const { theme, isDark } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
 
+  // Load message history on mount
   useEffect(() => {
-    // Subscribe to connection changes
+    loadMessages(agentId).then((savedMessages) => {
+      setMessages(savedMessages);
+      setIsLoading(false);
+    });
+  }, [agentId]);
+
+  // Save messages when they change
+  useEffect(() => {
+    if (!isLoading && messages.length > 0) {
+      saveMessages(agentId, messages);
+    }
+  }, [messages, agentId, isLoading]);
+
+  // Subscribe to gateway events
+  useEffect(() => {
     const unsubConnection = gateway.onConnectionChange((connected) => {
       setIsConnected(connected);
     });
 
-    // Subscribe to messages
     const unsubMessages = gateway.onMessage((wsMessage: WSMessage) => {
       handleWSMessage(wsMessage);
     });
@@ -59,7 +87,6 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
           metadata: {
             buttons: wsMessage.payload.buttons,
             media: wsMessage.payload.media,
-            codeBlocks: wsMessage.payload.codeBlocks,
           },
         };
         setMessages(prev => [...prev, newMessage]);
@@ -76,7 +103,6 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
         break;
 
       case 'stream':
-        // Handle streaming response - update last assistant message
         setMessages(prev => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg?.role === 'assistant' && lastMsg.status === 'streaming') {
@@ -85,7 +111,6 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
               { ...lastMsg, content: lastMsg.content + wsMessage.payload.delta }
             ];
           } else {
-            // Start new streaming message
             return [...prev, {
               id: Date.now().toString(),
               role: 'assistant' as const,
@@ -97,34 +122,20 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
         });
         break;
 
-      case 'buttons':
-        // Update last message with buttons
-        setMessages(prev => {
-          const lastMsg = prev[prev.length - 1];
-          if (lastMsg?.role === 'assistant') {
-            return [
-              ...prev.slice(0, -1),
-              { ...lastMsg, metadata: { ...lastMsg.metadata, buttons: wsMessage.payload.buttons } }
-            ];
-          }
-          return prev;
-        });
-        break;
-
       case 'error':
         console.error('Gateway error:', wsMessage.payload);
         break;
     }
   }, []);
 
-  const handleSend = (text: string) => {
-    // Add user message
+  const handleSend = (text: string, image?: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: text,
       timestamp: Date.now(),
       status: 'sending',
+      metadata: image ? { media: image } : undefined,
     };
     setMessages(prev => [...prev, userMessage]);
 
@@ -149,7 +160,9 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
 
   const scrollToBottom = () => {
     if (flatListRef.current && messages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: true });
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
   };
 
@@ -162,13 +175,13 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
   );
 
   const renderHeader = () => (
-    <View style={styles.header}>
+    <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
       <View style={styles.headerLeft}>
         <View style={[styles.statusDot, isConnected ? styles.connected : styles.disconnected]} />
-        <Text style={styles.headerTitle}>Clawdbot</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>🦞 {agentName}</Text>
       </View>
       <TouchableOpacity onPress={handleDisconnect} style={styles.disconnectButton}>
-        <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+        <Ionicons name="log-out-outline" size={24} color={theme.error} />
       </TouchableOpacity>
     </View>
   );
@@ -178,14 +191,14 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
 
     return (
       <View style={styles.typingContainer}>
-        <View style={styles.typingBubble}>
+        <View style={[styles.typingBubble, { backgroundColor: theme.messageBubbleAssistant }]}>
           {isThinking ? (
-            <Text style={styles.thinkingText}>🤔 Thinking...</Text>
+            <Text style={[styles.thinkingText, { color: theme.textSecondary }]}>🤔 Thinking...</Text>
           ) : (
             <View style={styles.typingDots}>
-              <View style={[styles.dot, styles.dot1]} />
-              <View style={[styles.dot, styles.dot2]} />
-              <View style={[styles.dot, styles.dot3]} />
+              <View style={[styles.dot, { backgroundColor: theme.textSecondary }]} />
+              <View style={[styles.dot, { backgroundColor: theme.textSecondary, opacity: 0.7 }]} />
+              <View style={[styles.dot, { backgroundColor: theme.textSecondary, opacity: 0.4 }]} />
             </View>
           )}
         </View>
@@ -196,19 +209,31 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyEmoji}>🦞</Text>
-      <Text style={styles.emptyTitle}>Connected!</Text>
-      <Text style={styles.emptyText}>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>Connected!</Text>
+      <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
         Start chatting with your Clawdbot agent
       </Text>
     </View>
   );
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {renderHeader()}
       
       {!isConnected && (
-        <View style={styles.reconnectBanner}>
+        <View style={[styles.reconnectBanner, { backgroundColor: theme.warning }]}>
           <ActivityIndicator size="small" color="#FFF" />
           <Text style={styles.reconnectText}>Reconnecting...</Text>
         </View>
@@ -221,11 +246,14 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
         keyExtractor={item => item.id}
         contentContainerStyle={[
           styles.messageList,
-          messages.length === 0 && styles.emptyMessageList
+          messages.length === 0 && styles.emptyMessageList,
+          { backgroundColor: theme.background }
         ]}
         ListEmptyComponent={renderEmptyState}
         ListFooterComponent={renderTypingIndicator}
         onContentSizeChange={scrollToBottom}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
       />
 
       <ChatInput onSend={handleSend} disabled={!isConnected} />
@@ -236,7 +264,11 @@ export function ChatScreen({ onDisconnect }: ChatScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -245,8 +277,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-    backgroundColor: '#FFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 + 12 : 12,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -267,7 +298,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A1A1A',
   },
   disconnectButton: {
     padding: 4,
@@ -276,7 +306,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF9500',
     paddingVertical: 8,
     gap: 8,
   },
@@ -287,6 +316,7 @@ const styles = StyleSheet.create({
   },
   messageList: {
     paddingVertical: 8,
+    flexGrow: 1,
   },
   emptyMessageList: {
     flex: 1,
@@ -303,12 +333,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#1A1A1A',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: '#8E8E93',
     textAlign: 'center',
   },
   typingContainer: {
@@ -317,7 +345,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   typingBubble: {
-    backgroundColor: '#E9E9EB',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
@@ -325,7 +352,6 @@ const styles = StyleSheet.create({
   },
   thinkingText: {
     fontSize: 14,
-    color: '#8E8E93',
     fontStyle: 'italic',
   },
   typingDots: {
@@ -336,15 +362,5 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#8E8E93',
-  },
-  dot1: {
-    opacity: 0.4,
-  },
-  dot2: {
-    opacity: 0.7,
-  },
-  dot3: {
-    opacity: 1,
   },
 });

@@ -4,7 +4,7 @@
  * QR code scanning and manual auth code entry for connecting to Clawdbot Gateway
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -16,22 +16,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { parseQRCode, exchangeAuthCode, testConnection } from '../../services/pairing';
+import { parseQRCode, testConnection } from '../../services/pairing';
 import { gateway } from '../../services/gateway';
 import { GatewayConfig } from '../../types';
-import { colors, spacing, fontSize, borderRadius } from '../../theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { spacing, fontSize, borderRadius } from '../../theme';
 
 interface PairingScreenProps {
   onPaired: (config: GatewayConfig, name?: string) => void;
 }
 
 export function PairingScreen({ onPaired }: PairingScreenProps) {
+  const { theme, isDark } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
-  const [mode, setMode] = useState<'qr' | 'code' | 'manual'>('qr');
-  const [authCode, setAuthCode] = useState('');
+  const [mode, setMode] = useState<'qr' | 'manual'>('qr');
   const [manualUrl, setManualUrl] = useState('');
   const [manualToken, setManualToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -43,7 +45,6 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
     setConnectStatus('Testing connection...');
     
     try {
-      // Test basic connectivity first
       const reachable = await testConnection(config);
       if (!reachable) {
         Alert.alert(
@@ -56,7 +57,6 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
 
       setConnectStatus('Connecting to gateway...');
       
-      // Connect with full handshake
       const connected = await gateway.connect(config);
       if (connected) {
         setConnectStatus('Connected!');
@@ -80,40 +80,15 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
     if (scanned) return;
     setScanned(true);
     
-    console.log('[Pairing] QR scanned:', data.slice(0, 50) + '...');
-    
     const result = parseQRCode(data);
     if (result) {
       handleConnect(result.config, result.name);
     } else {
       Alert.alert(
         'Invalid QR Code', 
-        'This QR code is not a valid Clawdbot pairing code.\n\nExpected format: clawdbot://connect?url=...&token=...',
+        'This QR code is not a valid Clawdbot pairing code.',
         [{ text: 'OK', onPress: () => setScanned(false) }]
       );
-    }
-  };
-
-  const handleCodeSubmit = async () => {
-    if (authCode.length !== 6) {
-      Alert.alert('Invalid Code', 'Please enter a 6-character code.');
-      return;
-    }
-    
-    setIsConnecting(true);
-    setConnectStatus('Exchanging code...');
-    
-    try {
-      const result = await exchangeAuthCode(authCode);
-      if (result) {
-        await handleConnect(result.config, result.name);
-      } else {
-        Alert.alert('Invalid Code', 'This code is invalid or expired. Please try again.');
-        setIsConnecting(false);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to verify code. Please try again.');
-      setIsConnecting(false);
     }
   };
 
@@ -137,39 +112,34 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
 
   if (isConnecting) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         <View style={styles.connectingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.connectingText}>{connectStatus || 'Connecting...'}</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.connectingText, { color: theme.textSecondary }]}>
+            {connectStatus || 'Connecting...'}
+          </Text>
         </View>
       </View>
     );
   }
 
   const renderTabs = () => (
-    <View style={styles.tabContainer}>
+    <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
       <TouchableOpacity
-        style={[styles.tab, mode === 'qr' && styles.activeTab]}
+        style={[styles.tab, mode === 'qr' && [styles.activeTab, { backgroundColor: theme.background }]]}
         onPress={() => { setMode('qr'); setScanned(false); }}
       >
-        <Ionicons name="qr-code" size={18} color={mode === 'qr' ? colors.primary : colors.gray500} />
-        <Text style={[styles.tabText, mode === 'qr' && styles.activeTabText]}>Scan QR</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        style={[styles.tab, mode === 'code' && styles.activeTab]}
-        onPress={() => setMode('code')}
-      >
-        <Ionicons name="keypad" size={18} color={mode === 'code' ? colors.primary : colors.gray500} />
-        <Text style={[styles.tabText, mode === 'code' && styles.activeTabText]}>Code</Text>
+        <Ionicons name="qr-code" size={18} color={mode === 'qr' ? theme.primary : theme.textSecondary} />
+        <Text style={[styles.tabText, mode === 'qr' && { color: theme.primary }]}>Scan QR</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.tab, mode === 'manual' && styles.activeTab]}
+        style={[styles.tab, mode === 'manual' && [styles.activeTab, { backgroundColor: theme.background }]]}
         onPress={() => setMode('manual')}
       >
-        <Ionicons name="build" size={18} color={mode === 'manual' ? colors.primary : colors.gray500} />
-        <Text style={[styles.tabText, mode === 'manual' && styles.activeTabText]}>Manual</Text>
+        <Ionicons name="build" size={18} color={mode === 'manual' ? theme.primary : theme.textSecondary} />
+        <Text style={[styles.tabText, mode === 'manual' && { color: theme.primary }]}>Manual</Text>
       </TouchableOpacity>
     </View>
   );
@@ -195,47 +165,18 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
           </View>
         </CameraView>
       ) : (
-        <View style={styles.permissionContainer}>
-          <Ionicons name="camera-outline" size={64} color={colors.gray400} />
-          <Text style={styles.permissionText}>
+        <View style={[styles.permissionContainer, { backgroundColor: theme.surface }]}>
+          <Ionicons name="camera-outline" size={64} color={theme.textSecondary} />
+          <Text style={[styles.permissionText, { color: theme.textSecondary }]}>
             Camera access is required to scan QR codes
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+          <TouchableOpacity style={[styles.permissionButton, { backgroundColor: theme.primary }]} onPress={requestPermission}>
             <Text style={styles.permissionButtonText}>Grant Permission</Text>
           </TouchableOpacity>
         </View>
       )}
-      <Text style={styles.hint}>
-        Scan the QR code from your Clawdbot dashboard or gateway settings
-      </Text>
-    </View>
-  );
-
-  const renderCodeInput = () => (
-    <View style={styles.codeContainer}>
-      <Text style={styles.inputLabel}>Enter your 6-digit pairing code</Text>
-      
-      <TextInput
-        style={styles.codeInput}
-        value={authCode}
-        onChangeText={(text) => setAuthCode(text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-        placeholder="ABC123"
-        placeholderTextColor={colors.gray400}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        maxLength={6}
-      />
-      
-      <TouchableOpacity
-        style={[styles.submitButton, authCode.length !== 6 && styles.submitButtonDisabled]}
-        onPress={handleCodeSubmit}
-        disabled={authCode.length !== 6}
-      >
-        <Text style={styles.submitButtonText}>Connect</Text>
-      </TouchableOpacity>
-      
-      <Text style={styles.hint}>
-        Generate a pairing code from your Clawdbot dashboard
+      <Text style={[styles.hint, { color: theme.textSecondary }]}>
+        Scan the QR code from your Clawdbot gateway settings
       </Text>
     </View>
   );
@@ -245,26 +186,26 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.manualContainer}
     >
-      <ScrollView contentContainerStyle={styles.manualScroll}>
-        <Text style={styles.inputLabel}>Gateway URL</Text>
+      <ScrollView contentContainerStyle={styles.manualScroll} keyboardShouldPersistTaps="handled">
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Gateway URL</Text>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, { backgroundColor: theme.inputBackground, color: theme.text }]}
           value={manualUrl}
           onChangeText={setManualUrl}
-          placeholder="wss://your-gateway.ts.net:18789"
-          placeholderTextColor={colors.gray400}
+          placeholder="wss://your-gateway:18789"
+          placeholderTextColor={theme.textSecondary}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="url"
         />
         
-        <Text style={[styles.inputLabel, { marginTop: spacing.md }]}>Token</Text>
+        <Text style={[styles.inputLabel, { color: theme.text, marginTop: spacing.md }]}>Token</Text>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, { backgroundColor: theme.inputBackground, color: theme.text }]}
           value={manualToken}
           onChangeText={setManualToken}
           placeholder="your_gateway_token"
-          placeholderTextColor={colors.gray400}
+          placeholderTextColor={theme.textSecondary}
           autoCapitalize="none"
           autoCorrect={false}
           secureTextEntry
@@ -273,7 +214,7 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
         <TouchableOpacity
           style={[
             styles.submitButton, 
-            (!manualUrl.trim() || !manualToken.trim()) && styles.submitButtonDisabled
+            { backgroundColor: (!manualUrl.trim() || !manualToken.trim()) ? theme.border : theme.primary }
           ]}
           onPress={handleManualSubmit}
           disabled={!manualUrl.trim() || !manualToken.trim()}
@@ -281,7 +222,7 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
           <Text style={styles.submitButtonText}>Connect</Text>
         </TouchableOpacity>
         
-        <Text style={styles.hint}>
+        <Text style={[styles.hint, { color: theme.textSecondary }]}>
           Find these in your Clawdbot config file under gateway.auth.token
         </Text>
       </ScrollView>
@@ -289,16 +230,16 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🦞 Claw</Text>
-        <Text style={styles.subtitle}>Connect to your Clawdbot agent</Text>
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>🦞 Claw</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Connect to your Clawdbot agent</Text>
       </View>
 
       {renderTabs()}
 
       {mode === 'qr' && renderQRScanner()}
-      {mode === 'code' && renderCodeInput()}
       {mode === 'manual' && renderManualInput()}
     </View>
   );
@@ -307,27 +248,22 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.surface,
   },
   header: {
     alignItems: 'center',
     paddingTop: 60,
     paddingBottom: spacing.lg,
-    backgroundColor: colors.light.background,
   },
   title: {
     fontSize: 42,
     fontWeight: 'bold',
-    color: colors.light.text,
     marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: fontSize.md,
-    color: colors.gray500,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.gray100,
     marginHorizontal: spacing.lg,
     marginVertical: spacing.md,
     borderRadius: borderRadius.md,
@@ -342,16 +278,10 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     gap: 6,
   },
-  activeTab: {
-    backgroundColor: colors.light.background,
-  },
+  activeTab: {},
   tabText: {
     fontSize: fontSize.sm,
-    color: colors.gray500,
     fontWeight: '500',
-  },
-  activeTabText: {
-    color: colors.primary,
   },
   qrContainer: {
     flex: 1,
@@ -381,26 +311,13 @@ const styles = StyleSheet.create({
     height: 24,
     borderColor: '#FFF',
   },
-  cornerTL: {
-    top: 0, left: 0,
-    borderTopWidth: 3, borderLeftWidth: 3,
-  },
-  cornerTR: {
-    top: 0, right: 0,
-    borderTopWidth: 3, borderRightWidth: 3,
-  },
-  cornerBL: {
-    bottom: 0, left: 0,
-    borderBottomWidth: 3, borderLeftWidth: 3,
-  },
-  cornerBR: {
-    bottom: 0, right: 0,
-    borderBottomWidth: 3, borderRightWidth: 3,
-  },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
   permissionContainer: {
     width: 280,
     height: 280,
-    backgroundColor: colors.gray100,
     borderRadius: borderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
@@ -408,13 +325,11 @@ const styles = StyleSheet.create({
   },
   permissionText: {
     fontSize: fontSize.sm,
-    color: colors.gray500,
     textAlign: 'center',
     marginTop: spacing.md,
     marginBottom: spacing.lg,
   },
   permissionButton: {
-    backgroundColor: colors.primary,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.md,
@@ -424,57 +339,32 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: '600',
   },
-  codeContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
   inputLabel: {
     fontSize: fontSize.md,
-    color: colors.light.text,
     marginBottom: spacing.sm,
     alignSelf: 'flex-start',
-  },
-  codeInput: {
-    width: 200,
-    height: 64,
-    backgroundColor: colors.light.background,
-    borderRadius: borderRadius.md,
-    fontSize: 28,
-    fontWeight: '700',
-    textAlign: 'center',
-    letterSpacing: 8,
-    color: colors.light.text,
-    marginBottom: spacing.lg,
   },
   textInput: {
     width: '100%',
     height: 48,
-    backgroundColor: colors.light.background,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
     fontSize: fontSize.md,
-    color: colors.light.text,
   },
   submitButton: {
-    backgroundColor: colors.primary,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl * 2,
     borderRadius: borderRadius.md,
-    marginTop: spacing.md,
-  },
-  submitButtonDisabled: {
-    backgroundColor: colors.gray300,
+    marginTop: spacing.lg,
   },
   submitButtonText: {
     color: '#FFF',
     fontSize: fontSize.lg,
     fontWeight: '600',
+    textAlign: 'center',
   },
   hint: {
     fontSize: fontSize.sm,
-    color: colors.gray500,
     textAlign: 'center',
     marginTop: spacing.lg,
     paddingHorizontal: spacing.lg,
@@ -494,7 +384,6 @@ const styles = StyleSheet.create({
   },
   connectingText: {
     fontSize: fontSize.md,
-    color: colors.gray500,
     marginTop: spacing.md,
   },
 });

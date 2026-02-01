@@ -9,179 +9,91 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+// Contexts
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+
 // Screens
 import { PairingScreen } from './src/app/auth/PairingScreen';
 import { ChatScreen } from './src/app/chat/ChatScreen';
-import { AgentListScreen } from './src/app/home/AgentListScreen';
-import { HubScreen } from './src/app/hub/HubScreen';
-import { SettingsScreen } from './src/app/settings/SettingsScreen';
 
-// Hooks & Services
-import { useStorage } from './src/hooks';
-import { useTheme } from './src/hooks/useTheme';
+// Services
 import { gateway } from './src/services/gateway';
+import { loadSession, saveSession, clearSession } from './src/services/pairing';
 
 // Types
-import { Agent, GatewayConfig } from './src/types';
-import { colors } from './src/theme';
+import { GatewayConfig } from './src/types';
 
-type Screen = 'loading' | 'agentList' | 'pairing' | 'chat' | 'hub' | 'settings';
+type Screen = 'loading' | 'pairing' | 'chat';
 
-export default function App() {
+function AppContent() {
+  const { theme, isDark } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>('loading');
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  
-  const {
-    agents,
-    settings,
-    isLoading,
-    addAgent,
-    updateAgent,
-    removeAgent,
-    addMessage,
-    getMessages,
-    updateSettings,
-    clearAll,
-  } = useStorage();
+  const [config, setConfig] = useState<GatewayConfig | null>(null);
+  const [agentName, setAgentName] = useState<string>('Clawdbot');
 
-  const { theme, isDark } = useTheme(settings);
-
-  // Initial load
+  // Check for existing session on mount
   useEffect(() => {
-    if (!isLoading) {
-      // If no agents, show pairing screen, otherwise show agent list
-      setCurrentScreen(agents.length === 0 ? 'pairing' : 'agentList');
-    }
-  }, [isLoading, agents.length]);
+    loadSession().then((saved) => {
+      if (saved) {
+        setConfig(saved.config);
+        setAgentName(saved.name || 'Clawdbot');
+        // Auto-connect
+        gateway.connect(saved.config)
+          .then(() => setCurrentScreen('chat'))
+          .catch(() => setCurrentScreen('pairing'));
+      } else {
+        setCurrentScreen('pairing');
+      }
+    });
+  }, []);
 
   // Handle successful pairing
-  const handlePaired = useCallback(async (config: GatewayConfig, agentName?: string) => {
-    const newAgent: Agent = {
-      id: Date.now().toString(),
-      name: agentName || 'My Agent',
-      emoji: '🤖',
-      gateway: config,
-      unreadCount: 0,
-      isOnline: true,
-      createdAt: Date.now(),
-    };
-    
-    await addAgent(newAgent);
-    setSelectedAgent(newAgent);
+  const handlePaired = useCallback(async (newConfig: GatewayConfig, name?: string) => {
+    setConfig(newConfig);
+    setAgentName(name || 'Clawdbot');
+    await saveSession(newConfig, name);
     setCurrentScreen('chat');
-  }, [addAgent]);
+  }, []);
 
-  // Handle agent selection
-  const handleSelectAgent = useCallback(async (agent: Agent) => {
-    setSelectedAgent(agent);
-    
-    // Connect to gateway
-    try {
-      await gateway.connect(agent.gateway);
-      await updateAgent(agent.id, { isOnline: true });
-    } catch (error) {
-      console.error('Failed to connect:', error);
-      await updateAgent(agent.id, { isOnline: false });
-    }
-    
-    setCurrentScreen('chat');
-  }, [updateAgent]);
-
-  // Handle delete agent
-  const handleDeleteAgent = useCallback(async (agentId: string) => {
-    await removeAgent(agentId);
-    if (selectedAgent?.id === agentId) {
-      setSelectedAgent(null);
-      gateway.disconnect();
-    }
-  }, [removeAgent, selectedAgent]);
-
-  // Handle logout
-  const handleLogout = useCallback(async () => {
+  // Handle disconnect
+  const handleDisconnect = useCallback(async () => {
     gateway.disconnect();
-    await clearAll();
-    setSelectedAgent(null);
+    await clearSession();
+    setConfig(null);
     setCurrentScreen('pairing');
-  }, [clearAll]);
-
-  // Handle back from chat
-  const handleBackFromChat = useCallback(() => {
-    gateway.disconnect();
-    setSelectedAgent(null);
-    setCurrentScreen('agentList');
   }, []);
 
   // Loading state
-  if (currentScreen === 'loading' || isLoading) {
+  if (currentScreen === 'loading') {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </View>
     );
   }
 
-  // Render current screen
-  const renderScreen = () => {
-    switch (currentScreen) {
-      case 'pairing':
-        return (
-          <PairingScreen 
-            onPaired={() => {
-              // After pairing, go to agent list (will show new agent)
-              setCurrentScreen('agentList');
-            }} 
-          />
-        );
-
-      case 'agentList':
-        return (
-          <AgentListScreen
-            agents={agents}
-            onSelectAgent={handleSelectAgent}
-            onAddAgent={() => setCurrentScreen('pairing')}
-            onOpenHub={() => setCurrentScreen('hub')}
-            onOpenSettings={() => setCurrentScreen('settings')}
-            onDeleteAgent={handleDeleteAgent}
-          />
-        );
-
-      case 'chat':
-        if (!selectedAgent) {
-          setCurrentScreen('agentList');
-          return null;
-        }
-        return (
-          <ChatScreen 
-            onDisconnect={handleBackFromChat}
-          />
-        );
-
-      case 'hub':
-        return (
-          <HubScreen onBack={() => setCurrentScreen('agentList')} />
-        );
-
-      case 'settings':
-        return (
-          <SettingsScreen
-            settings={settings}
-            onUpdateSettings={updateSettings}
-            onBack={() => setCurrentScreen('agentList')}
-            onLogout={handleLogout}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
-    <GestureHandlerRootView style={styles.container}>
-      {renderScreen()}
+    <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.background }]}>
+      {currentScreen === 'pairing' ? (
+        <PairingScreen onPaired={handlePaired} />
+      ) : (
+        <ChatScreen
+          agentId={config?.agentId || 'default'}
+          agentName={agentName}
+          onDisconnect={handleDisconnect}
+        />
+      )}
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </GestureHandlerRootView>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
