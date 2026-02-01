@@ -2,8 +2,7 @@
  * Claw - Clawdbot Native App
  * 
  * Multi-agent, multi-room chat client for Clawdbot
- * 
- * Navigation: Agents → Rooms → Chat
+ * 메신저 스타일 탭 네비게이션
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,8 +13,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Contexts
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
+// Components
+import { TabBar, TabName } from './src/components/TabBar';
+
 // Screens
 import { AgentListScreen } from './src/app/agents/AgentListScreen';
+import { ChatsScreen } from './src/app/chats/ChatsScreen';
+import { HubScreen } from './src/app/hub/HubScreen';
+import { SettingsScreen } from './src/app/settings/SettingsScreen';
 import { PairingScreen } from './src/app/auth/PairingScreen';
 import { RoomListScreen } from './src/app/rooms/RoomListScreen';
 import { ChatScreen } from './src/app/chat/ChatScreen';
@@ -33,14 +38,14 @@ import {
 // Types
 import { GatewayConfig, ChatRoom } from './src/types';
 
-type Screen = 'loading' | 'agents' | 'pairing' | 'rooms' | 'chat';
+type Screen = 'loading' | 'tabs' | 'pairing' | 'rooms' | 'chat';
 
-// Agent emojis for selection
 const AGENT_EMOJIS = ['🤖', '🦞', '🐙', '🦊', '🐳', '🦄', '🐲', '🌟', '💎', '🚀'];
 
 function AppContent() {
   const { theme, isDark } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>('loading');
+  const [activeTab, setActiveTab] = useState<TabName>('agents');
   const [agents, setAgents] = useState<StoredAgent[]>([]);
   const [currentAgent, setCurrentAgent] = useState<StoredAgent | null>(null);
   const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);
@@ -49,27 +54,39 @@ function AppContent() {
   useEffect(() => {
     loadAgents().then((saved) => {
       setAgents(saved);
-      setCurrentScreen('agents');
+      setCurrentScreen('tabs');
     });
   }, []);
 
-  // Handle agent selection
+  // Handle agent selection from Agents tab
   const handleSelectAgent = useCallback(async (agent: StoredAgent) => {
     setCurrentAgent(agent);
     
-    // Connect to gateway
     try {
       await gateway.connect(agent.gateway);
       await updateAgent(agent.id, { lastActiveAt: Date.now() });
-      setCurrentScreen('rooms');
     } catch (error) {
       console.error('Failed to connect:', error);
-      // Still go to rooms, will show disconnected state
-      setCurrentScreen('rooms');
     }
+    setCurrentScreen('rooms');
   }, []);
 
-  // Handle new agent added via pairing
+  // Handle chat selection from Chats tab
+  const handleSelectChat = useCallback(async (agent: StoredAgent, room: ChatRoom) => {
+    setCurrentAgent(agent);
+    setCurrentRoom(room);
+    
+    try {
+      await gateway.connect(agent.gateway);
+      await updateAgent(agent.id, { lastActiveAt: Date.now() });
+      gateway.setCurrentRoom(room.id);
+    } catch (error) {
+      console.error('Failed to connect:', error);
+    }
+    setCurrentScreen('chat');
+  }, []);
+
+  // Handle new agent added
   const handleAgentPaired = useCallback(async (config: GatewayConfig, name?: string) => {
     const newAgent: StoredAgent = {
       id: `agent-${Date.now()}`,
@@ -104,20 +121,29 @@ function AppContent() {
     setCurrentScreen('rooms');
   }, [currentAgent, currentRoom]);
 
-  // Handle back from rooms to agents
-  const handleBackToAgents = useCallback(() => {
+  // Handle back from rooms to tabs
+  const handleBackToTabs = useCallback(() => {
     gateway.disconnect();
     setCurrentAgent(null);
     setCurrentRoom(null);
-    setCurrentScreen('agents');
+    setCurrentScreen('tabs');
   }, []);
 
   // Handle cancel pairing
   const handleCancelPairing = useCallback(() => {
-    setCurrentScreen('agents');
+    setCurrentScreen('tabs');
   }, []);
 
-  // Refresh agents list
+  // Handle logout (clear all data)
+  const handleLogout = useCallback(async () => {
+    // TODO: Clear all data
+    setAgents([]);
+    setCurrentAgent(null);
+    setCurrentRoom(null);
+    setCurrentScreen('tabs');
+  }, []);
+
+  // Refresh agents
   const refreshAgents = useCallback(async () => {
     const saved = await loadAgents();
     setAgents(saved);
@@ -133,34 +159,59 @@ function AppContent() {
     );
   }
 
+  // Render tab content
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'agents':
+        return (
+          <AgentListScreen
+            onSelectAgent={handleSelectAgent}
+            onAddAgent={() => setCurrentScreen('pairing')}
+            onOpenSettings={() => setActiveTab('settings')}
+          />
+        );
+      case 'chats':
+        return <ChatsScreen onSelectChat={handleSelectChat} />;
+      case 'hub':
+        return <HubScreen />;
+      case 'settings':
+        return <SettingsScreen onLogout={handleLogout} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.background }]}>
-      {currentScreen === 'agents' && (
-        <AgentListScreen
-          onSelectAgent={handleSelectAgent}
-          onAddAgent={() => setCurrentScreen('pairing')}
-          onOpenSettings={() => {/* TODO: settings */}}
-        />
+      {/* Main Tab View */}
+      {currentScreen === 'tabs' && (
+        <View style={styles.container}>
+          {renderTabContent()}
+          <TabBar activeTab={activeTab} onTabPress={setActiveTab} />
+        </View>
       )}
-      
+
+      {/* Pairing Screen */}
       {currentScreen === 'pairing' && (
         <PairingScreen
           onPaired={handleAgentPaired}
           onCancel={handleCancelPairing}
-          showCancel={agents.length > 0}
+          showCancel={true}
         />
       )}
-      
+
+      {/* Room List */}
       {currentScreen === 'rooms' && currentAgent && (
         <RoomListScreen
           agentId={currentAgent.id}
           agentName={currentAgent.name}
           agentEmoji={currentAgent.emoji}
           onSelectRoom={handleSelectRoom}
-          onBack={handleBackToAgents}
+          onBack={handleBackToTabs}
         />
       )}
-      
+
+      {/* Chat Screen */}
       {currentScreen === 'chat' && currentAgent && currentRoom && (
         <ChatScreen
           agentId={currentAgent.id}
@@ -170,7 +221,7 @@ function AppContent() {
           onBack={handleBackToRooms}
         />
       )}
-      
+
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </GestureHandlerRootView>
   );

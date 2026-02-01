@@ -1,409 +1,212 @@
 /**
- * ClawdHub Screen
+ * Hub Screen
  * 
- * Browse and install skills from ClawdHub marketplace
+ * Clawdbot 관련 링크 및 리소스
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
-  TextInput,
-  SafeAreaView,
-  Image,
   Linking,
-  ActivityIndicator,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Skill } from '../../types';
-import { colors, spacing, fontSize, borderRadius } from '../../theme';
+import { useTheme } from '../../contexts/ThemeContext';
+import { spacing, fontSize, borderRadius } from '../../theme';
 
-interface HubScreenProps {
-  onBack: () => void;
+interface LinkItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  url: string;
+  color: string;
 }
 
-// Mock data - will be replaced with actual API
-const MOCK_SKILLS: Skill[] = [
+const LINKS: LinkItem[] = [
   {
-    id: '1',
-    name: 'Weather',
-    description: 'Get current weather and forecasts for any location',
-    icon: '🌤️',
-    author: 'clawdbot',
-    version: '1.0.0',
-    rating: 4.8,
-    installs: 1200,
-    category: 'tools',
-    tags: ['weather', 'forecast'],
+    id: 'docs',
+    title: 'Documentation',
+    subtitle: 'Setup guides and API reference',
+    icon: 'book-outline',
+    url: 'https://docs.clawd.bot',
+    color: '#007AFF',
   },
   {
-    id: '2',
-    name: 'GitHub',
-    description: 'Manage repositories, issues, and PRs with gh CLI',
-    icon: '🐙',
-    author: 'clawdbot',
-    version: '1.2.0',
-    rating: 4.9,
-    installs: 890,
-    category: 'development',
-    tags: ['github', 'git', 'code'],
+    id: 'github',
+    title: 'GitHub',
+    subtitle: 'Source code and issues',
+    icon: 'logo-github',
+    url: 'https://github.com/clawdbot/clawdbot',
+    color: '#333',
   },
   {
-    id: '3',
-    name: 'Notion',
-    description: 'Create and manage Notion pages and databases',
-    icon: '📝',
-    author: 'clawdbot',
-    version: '1.0.0',
-    rating: 4.7,
-    installs: 650,
-    category: 'productivity',
-    tags: ['notion', 'notes', 'database'],
+    id: 'discord',
+    title: 'Discord Community',
+    subtitle: 'Chat with other users',
+    icon: 'logo-discord',
+    url: 'https://discord.com/invite/clawd',
+    color: '#5865F2',
   },
   {
-    id: '4',
-    name: 'Slack',
-    description: 'Send messages and manage Slack channels',
-    icon: '💬',
-    author: 'clawdbot',
-    version: '1.1.0',
-    rating: 4.6,
-    installs: 520,
-    category: 'communication',
-    tags: ['slack', 'messaging'],
+    id: 'skills',
+    title: 'ClawdHub Skills',
+    subtitle: 'Browse and install skills',
+    icon: 'extension-puzzle-outline',
+    url: 'https://clawdhub.com',
+    color: '#FF6B35',
   },
   {
-    id: '5',
-    name: 'Deep Research',
-    description: 'Complex multi-step research with planning and reasoning',
-    icon: '🔬',
-    author: 'we-crafted',
-    version: '1.0.0',
-    rating: 4.9,
-    installs: 340,
-    category: 'research',
-    tags: ['research', 'analysis'],
+    id: 'twitter',
+    title: 'Twitter / X',
+    subtitle: '@clawdbot updates',
+    icon: 'logo-twitter',
+    url: 'https://x.com/clawdbot',
+    color: '#1DA1F2',
   },
 ];
 
-const CATEGORIES = [
-  { id: 'all', name: 'All', icon: '🔥' },
-  { id: 'tools', name: 'Tools', icon: '🔧' },
-  { id: 'development', name: 'Dev', icon: '💻' },
-  { id: 'productivity', name: 'Productivity', icon: '📊' },
-  { id: 'communication', name: 'Comms', icon: '💬' },
-];
+export function HubScreen() {
+  const { theme, isDark } = useTheme();
 
-export function HubScreen({ onBack }: HubScreenProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [skills, setSkills] = useState<Skill[]>(MOCK_SKILLS);
-  const [loading, setLoading] = useState(false);
-
-  const filteredSkills = skills.filter(skill => {
-    const matchesSearch = skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         skill.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || skill.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const handleSkillPress = (skill: Skill) => {
-    // Open ClawdHub website for skill details
-    Linking.openURL(`https://clawdhub.com/skills/${skill.id}`);
+  const handleLinkPress = (url: string) => {
+    Linking.openURL(url);
   };
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity onPress={onBack} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={24} color={colors.primary} />
-      </TouchableOpacity>
-      <Text style={styles.title}>📦 ClawdHub</Text>
-      <View style={styles.placeholder} />
-    </View>
-  );
-
-  const renderSearchBar = () => (
-    <View style={styles.searchContainer}>
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color={colors.gray500} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search skills..."
-          placeholderTextColor={colors.gray500}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+  const renderLink = (item: LinkItem) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[styles.linkItem, { backgroundColor: theme.surfaceElevated }]}
+      onPress={() => handleLinkPress(item.url)}
+    >
+      <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
+        <Ionicons name={item.icon} size={24} color={item.color} />
       </View>
-    </View>
-  );
-
-  const renderCategories = () => (
-    <View style={styles.categoriesContainer}>
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={CATEGORIES}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.categoriesList}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.categoryChip,
-              selectedCategory === item.id && styles.categoryChipActive
-            ]}
-            onPress={() => setSelectedCategory(item.id)}
-          >
-            <Text style={styles.categoryIcon}>{item.icon}</Text>
-            <Text style={[
-              styles.categoryText,
-              selectedCategory === item.id && styles.categoryTextActive
-            ]}>
-              {item.name}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
-    </View>
-  );
-
-  const renderSkillItem = ({ item }: { item: Skill }) => (
-    <TouchableOpacity style={styles.skillItem} onPress={() => handleSkillPress(item)}>
-      <View style={styles.skillIcon}>
-        <Text style={styles.skillIconText}>{item.icon}</Text>
+      <View style={styles.linkInfo}>
+        <Text style={[styles.linkTitle, { color: theme.text }]}>{item.title}</Text>
+        <Text style={[styles.linkSubtitle, { color: theme.textSecondary }]}>{item.subtitle}</Text>
       </View>
-      
-      <View style={styles.skillContent}>
-        <View style={styles.skillHeader}>
-          <Text style={styles.skillName}>{item.name}</Text>
-          <Text style={styles.skillVersion}>v{item.version}</Text>
-        </View>
-        
-        <Text style={styles.skillDescription} numberOfLines={2}>
-          {item.description}
-        </Text>
-        
-        <View style={styles.skillMeta}>
-          <View style={styles.skillRating}>
-            <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={styles.skillMetaText}>{item.rating}</Text>
-          </View>
-          <Text style={styles.skillMetaDot}>·</Text>
-          <Text style={styles.skillMetaText}>
-            {item.installs >= 1000 
-              ? `${(item.installs / 1000).toFixed(1)}k` 
-              : item.installs
-            } installs
-          </Text>
-        </View>
-      </View>
-      
-      <Ionicons name="chevron-forward" size={20} color={colors.gray400} />
+      <Ionicons name="open-outline" size={20} color={theme.textSecondary} />
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {renderHeader()}
-      {renderSearchBar()}
-      {renderCategories()}
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>🦞 Hub</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Logo Section */}
+        <View style={styles.logoSection}>
+          <Text style={styles.logoEmoji}>🦞</Text>
+          <Text style={[styles.logoTitle, { color: theme.text }]}>Clawdbot</Text>
+          <Text style={[styles.logoSubtitle, { color: theme.textSecondary }]}>
+            Your AI-powered personal assistant
+          </Text>
         </View>
-      ) : (
-        <FlatList
-          data={filteredSkills}
-          renderItem={renderSkillItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.skillsList}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          ListEmptyComponent={() => (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No skills found</Text>
-            </View>
-          )}
-        />
-      )}
-      
-      <TouchableOpacity 
-        style={styles.browseButton}
-        onPress={() => Linking.openURL('https://clawdhub.com')}
-      >
-        <Text style={styles.browseButtonText}>Browse all on clawdhub.com</Text>
-        <Ionicons name="open-outline" size={16} color={colors.primary} />
-      </TouchableOpacity>
-    </SafeAreaView>
+
+        {/* Links */}
+        <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+          RESOURCES
+        </Text>
+        <View style={styles.linksContainer}>
+          {LINKS.map(renderLink)}
+        </View>
+
+        {/* Version Info */}
+        <View style={styles.versionContainer}>
+          <Text style={[styles.versionText, { color: theme.textTertiary }]}>
+            Claw App v0.4.0
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.gray200,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 0) + spacing.md,
+    borderBottomWidth: 1,
   },
-  backButton: {
-    padding: spacing.xs,
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
   },
-  title: {
-    fontSize: fontSize.xl,
-    fontWeight: '600',
-    color: colors.light.text,
-  },
-  placeholder: {
-    width: 32,
-  },
-  searchContainer: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.light.surface,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.light.background,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: fontSize.md,
-    color: colors.light.text,
-  },
-  categoriesContainer: {
-    backgroundColor: colors.light.surface,
-    paddingBottom: spacing.sm,
-  },
-  categoriesList: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.light.background,
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.sm + 2,
-    borderRadius: borderRadius.full,
-    gap: spacing.xs,
-  },
-  categoryChipActive: {
-    backgroundColor: colors.primary,
-  },
-  categoryIcon: {
-    fontSize: 14,
-  },
-  categoryText: {
-    fontSize: fontSize.sm,
-    color: colors.gray600,
-  },
-  categoryTextActive: {
-    color: '#FFF',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  skillsList: {
+  content: {
     padding: spacing.md,
   },
-  skillItem: {
-    flexDirection: 'row',
+  logoSection: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xl,
   },
-  skillIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.gray100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
+  logoEmoji: {
+    fontSize: 64,
+    marginBottom: spacing.sm,
   },
-  skillIconText: {
-    fontSize: 24,
+  logoTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: spacing.xs,
   },
-  skillContent: {
-    flex: 1,
+  logoSubtitle: {
+    fontSize: fontSize.md,
   },
-  skillHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+    marginTop: spacing.md,
+  },
+  linksContainer: {
     gap: spacing.sm,
   },
-  skillName: {
-    fontSize: fontSize.lg,
-    fontWeight: '600',
-    color: colors.light.text,
-  },
-  skillVersion: {
-    fontSize: fontSize.xs,
-    color: colors.gray500,
-  },
-  skillDescription: {
-    fontSize: fontSize.sm,
-    color: colors.gray600,
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  skillMeta: {
+  linkItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
   },
-  skillRating: {
-    flexDirection: 'row',
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 2,
-  },
-  skillMetaText: {
-    fontSize: fontSize.xs,
-    color: colors.gray500,
-  },
-  skillMetaDot: {
-    fontSize: fontSize.xs,
-    color: colors.gray400,
-    marginHorizontal: spacing.xs,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.gray200,
-    marginLeft: 64,
-  },
-  emptyState: {
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: fontSize.md,
-    color: colors.gray500,
-  },
-  browseButton: {
-    flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.gray200,
-    gap: spacing.xs,
   },
-  browseButtonText: {
+  linkInfo: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  linkTitle: {
     fontSize: fontSize.md,
-    color: colors.primary,
+    fontWeight: '600',
+  },
+  linkSubtitle: {
+    fontSize: fontSize.sm,
+    marginTop: 2,
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  versionText: {
+    fontSize: fontSize.sm,
   },
 });
