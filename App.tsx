@@ -1,8 +1,9 @@
 /**
  * Claw - Clawdbot Native App
  * 
- * Main application entry point with navigation
- * Supports multiple chat rooms per agent connection
+ * Multi-agent, multi-room chat client for Clawdbot
+ * 
+ * Navigation: Agents → Rooms → Chat
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,48 +15,73 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
 // Screens
+import { AgentListScreen } from './src/app/agents/AgentListScreen';
 import { PairingScreen } from './src/app/auth/PairingScreen';
 import { RoomListScreen } from './src/app/rooms/RoomListScreen';
 import { ChatScreen } from './src/app/chat/ChatScreen';
 
 // Services
 import { gateway } from './src/services/gateway';
-import { loadSession, saveSession, clearSession } from './src/services/pairing';
-import { updateRoom, loadRooms } from './src/services/storage';
+import { 
+  StoredAgent, 
+  loadAgents, 
+  addAgent, 
+  updateAgent,
+  updateRoom,
+} from './src/services/storage';
 
 // Types
 import { GatewayConfig, ChatRoom } from './src/types';
 
-type Screen = 'loading' | 'pairing' | 'rooms' | 'chat';
+type Screen = 'loading' | 'agents' | 'pairing' | 'rooms' | 'chat';
+
+// Agent emojis for selection
+const AGENT_EMOJIS = ['🤖', '🦞', '🐙', '🦊', '🐳', '🦄', '🐲', '🌟', '💎', '🚀'];
 
 function AppContent() {
   const { theme, isDark } = useTheme();
   const [currentScreen, setCurrentScreen] = useState<Screen>('loading');
-  const [config, setConfig] = useState<GatewayConfig | null>(null);
-  const [agentName, setAgentName] = useState<string>('Clawdbot');
+  const [agents, setAgents] = useState<StoredAgent[]>([]);
+  const [currentAgent, setCurrentAgent] = useState<StoredAgent | null>(null);
   const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);
 
-  // Check for existing session on mount
+  // Load agents on mount
   useEffect(() => {
-    loadSession().then((saved) => {
-      if (saved) {
-        setConfig(saved.config);
-        setAgentName(saved.name || 'Clawdbot');
-        // Auto-connect
-        gateway.connect(saved.config)
-          .then(() => setCurrentScreen('rooms'))
-          .catch(() => setCurrentScreen('pairing'));
-      } else {
-        setCurrentScreen('pairing');
-      }
+    loadAgents().then((saved) => {
+      setAgents(saved);
+      setCurrentScreen('agents');
     });
   }, []);
 
-  // Handle successful pairing
-  const handlePaired = useCallback(async (newConfig: GatewayConfig, name?: string) => {
-    setConfig(newConfig);
-    setAgentName(name || 'Clawdbot');
-    await saveSession(newConfig, name);
+  // Handle agent selection
+  const handleSelectAgent = useCallback(async (agent: StoredAgent) => {
+    setCurrentAgent(agent);
+    
+    // Connect to gateway
+    try {
+      await gateway.connect(agent.gateway);
+      await updateAgent(agent.id, { lastActiveAt: Date.now() });
+      setCurrentScreen('rooms');
+    } catch (error) {
+      console.error('Failed to connect:', error);
+      // Still go to rooms, will show disconnected state
+      setCurrentScreen('rooms');
+    }
+  }, []);
+
+  // Handle new agent added via pairing
+  const handleAgentPaired = useCallback(async (config: GatewayConfig, name?: string) => {
+    const newAgent: StoredAgent = {
+      id: `agent-${Date.now()}`,
+      name: name || 'My Agent',
+      emoji: AGENT_EMOJIS[Math.floor(Math.random() * AGENT_EMOJIS.length)],
+      gateway: config,
+      createdAt: Date.now(),
+    };
+    
+    await addAgent(newAgent);
+    setAgents(prev => [...prev, newAgent]);
+    setCurrentAgent(newAgent);
     setCurrentScreen('rooms');
   }, []);
 
@@ -66,28 +92,35 @@ function AppContent() {
     setCurrentScreen('chat');
   }, []);
 
-  // Handle back from chat to room list
+  // Handle back from chat to rooms
   const handleBackToRooms = useCallback(async () => {
-    // Update last message preview in room
-    if (currentRoom) {
-      const rooms = await loadRooms();
-      const updated = rooms.find(r => r.id === currentRoom.id);
-      if (updated) {
-        await updateRoom(currentRoom.id, { lastMessageAt: Date.now() });
-      }
+    if (currentAgent && currentRoom) {
+      await updateRoom(currentAgent.id, currentRoom.id, { 
+        lastMessageAt: Date.now() 
+      });
     }
     gateway.setCurrentRoom(null);
     setCurrentRoom(null);
     setCurrentScreen('rooms');
-  }, [currentRoom]);
+  }, [currentAgent, currentRoom]);
 
-  // Handle full disconnect
-  const handleDisconnect = useCallback(async () => {
+  // Handle back from rooms to agents
+  const handleBackToAgents = useCallback(() => {
     gateway.disconnect();
-    await clearSession();
-    setConfig(null);
+    setCurrentAgent(null);
     setCurrentRoom(null);
-    setCurrentScreen('pairing');
+    setCurrentScreen('agents');
+  }, []);
+
+  // Handle cancel pairing
+  const handleCancelPairing = useCallback(() => {
+    setCurrentScreen('agents');
+  }, []);
+
+  // Refresh agents list
+  const refreshAgents = useCallback(async () => {
+    const saved = await loadAgents();
+    setAgents(saved);
   }, []);
 
   // Loading state
@@ -102,20 +135,35 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.background }]}>
-      {currentScreen === 'pairing' && (
-        <PairingScreen onPaired={handlePaired} />
-      )}
-      
-      {currentScreen === 'rooms' && (
-        <RoomListScreen
-          agentName={agentName}
-          onSelectRoom={handleSelectRoom}
-          onDisconnect={handleDisconnect}
+      {currentScreen === 'agents' && (
+        <AgentListScreen
+          onSelectAgent={handleSelectAgent}
+          onAddAgent={() => setCurrentScreen('pairing')}
+          onOpenSettings={() => {/* TODO: settings */}}
         />
       )}
       
-      {currentScreen === 'chat' && currentRoom && (
+      {currentScreen === 'pairing' && (
+        <PairingScreen
+          onPaired={handleAgentPaired}
+          onCancel={handleCancelPairing}
+          showCancel={agents.length > 0}
+        />
+      )}
+      
+      {currentScreen === 'rooms' && currentAgent && (
+        <RoomListScreen
+          agentId={currentAgent.id}
+          agentName={currentAgent.name}
+          agentEmoji={currentAgent.emoji}
+          onSelectRoom={handleSelectRoom}
+          onBack={handleBackToAgents}
+        />
+      )}
+      
+      {currentScreen === 'chat' && currentAgent && currentRoom && (
         <ChatScreen
+          agentId={currentAgent.id}
           roomId={currentRoom.id}
           roomName={currentRoom.name}
           roomEmoji={currentRoom.emoji}

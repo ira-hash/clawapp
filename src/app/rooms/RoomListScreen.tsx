@@ -1,12 +1,7 @@
 /**
  * Room List Screen
  * 
- * Shows all chat rooms (sessions) for the connected agent
- * Supports:
- * - Creating new rooms
- * - Swipe to delete
- * - Room renaming
- * - Unread indicators
+ * Shows all chat rooms (sessions) for a specific agent
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,19 +21,27 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ChatRoom } from '../../types';
-import { loadRooms, saveRooms, addRoom, deleteRoom } from '../../services/storage';
+import { loadRooms, saveRooms, deleteRoom } from '../../services/storage';
 import { spacing, fontSize, borderRadius } from '../../theme';
 
 // Default emoji options for rooms
 const ROOM_EMOJIS = ['💬', '📝', '🔍', '💡', '🚀', '🎯', '📊', '🛠️', '🎨', '📚'];
 
 interface RoomListScreenProps {
-  onSelectRoom: (room: ChatRoom) => void;
-  onDisconnect: () => void;
+  agentId: string;
   agentName: string;
+  agentEmoji: string;
+  onSelectRoom: (room: ChatRoom) => void;
+  onBack: () => void;
 }
 
-export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomListScreenProps) {
+export function RoomListScreen({ 
+  agentId, 
+  agentName, 
+  agentEmoji,
+  onSelectRoom, 
+  onBack 
+}: RoomListScreenProps) {
   const { theme, isDark } = useTheme();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,24 +51,24 @@ export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomLi
 
   // Load rooms on mount
   useEffect(() => {
-    loadRooms().then((saved) => {
+    loadRooms(agentId).then((saved) => {
       if (saved.length === 0) {
         // Create default room if none exist
         const defaultRoom: ChatRoom = {
-          id: 'default',
+          id: `${agentId}-default`,
           name: 'General',
           emoji: '💬',
           createdAt: Date.now(),
           unreadCount: 0,
         };
         setRooms([defaultRoom]);
-        saveRooms([defaultRoom]);
+        saveRooms(agentId, [defaultRoom]);
       } else {
         setRooms(saved);
       }
       setIsLoading(false);
     });
-  }, []);
+  }, [agentId]);
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) {
@@ -76,7 +79,7 @@ export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomLi
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const newRoom: ChatRoom = {
-      id: `room-${Date.now()}`,
+      id: `${agentId}-room-${Date.now()}`,
       name: newRoomName.trim(),
       emoji: selectedEmoji,
       createdAt: Date.now(),
@@ -85,7 +88,7 @@ export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomLi
 
     const updatedRooms = [...rooms, newRoom];
     setRooms(updatedRooms);
-    await saveRooms(updatedRooms);
+    await saveRooms(agentId, updatedRooms);
 
     setShowNewRoomModal(false);
     setNewRoomName('');
@@ -111,7 +114,7 @@ export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomLi
           style: 'destructive',
           onPress: async () => {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            await deleteRoom(roomId);
+            await deleteRoom(agentId, roomId);
             setRooms(rooms.filter(r => r.id !== roomId));
           },
         },
@@ -153,11 +156,11 @@ export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomLi
 
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-      <TouchableOpacity onPress={onDisconnect} style={styles.backButton}>
+      <TouchableOpacity onPress={onBack} style={styles.backButton}>
         <Ionicons name="chevron-back" size={28} color={theme.primary} />
       </TouchableOpacity>
       <View style={styles.headerCenter}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>🦞 {agentName}</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>{agentEmoji} {agentName}</Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
           {rooms.length} room{rooms.length !== 1 ? 's' : ''}
         </Text>
@@ -238,7 +241,7 @@ export function RoomListScreen({ onSelectRoom, onDisconnect, agentName }: RoomLi
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyEmoji}>🦞</Text>
+      <Text style={styles.emptyEmoji}>{agentEmoji}</Text>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No Chat Rooms</Text>
       <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
         Tap + to create your first room

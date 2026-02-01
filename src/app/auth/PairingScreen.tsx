@@ -28,9 +28,11 @@ import { spacing, fontSize, borderRadius } from '../../theme';
 
 interface PairingScreenProps {
   onPaired: (config: GatewayConfig, name?: string) => void;
+  onCancel?: () => void;
+  showCancel?: boolean;
 }
 
-export function PairingScreen({ onPaired }: PairingScreenProps) {
+export function PairingScreen({ onPaired, onCancel, showCancel = false }: PairingScreenProps) {
   const { theme, isDark } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<'qr' | 'manual'>('qr');
@@ -233,8 +235,13 @@ export function PairingScreen({ onPaired }: PairingScreenProps) {
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={[styles.header, { backgroundColor: theme.background }]}>
-        <Text style={[styles.title, { color: theme.text }]}>🦞 Claw</Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Connect to your Clawdbot agent</Text>
+        {showCancel && (
+          <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
+            <Ionicons name="close" size={28} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
+        <Text style={[styles.title, { color: theme.text }]}>🦞 Add Agent</Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Connect to your Clawdbot gateway</Text>
       </View>
 
       {renderTabs()}
@@ -253,6 +260,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 60,
     paddingBottom: spacing.lg,
+    position: 'relative',
+  },
+  cancelButton: {
+    position: 'absolute',
+    top: 60,
+    left: spacing.md,
+    padding: spacing.xs,
   },
   title: {
     fontSize: 42,

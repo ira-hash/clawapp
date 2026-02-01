@@ -26,17 +26,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { MessageBubble, ChatInput } from '../../components/chat';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
+
+// Helper to truncate preview
 import { useTheme } from '../../contexts/ThemeContext';
 import { Message, WSMessage } from '../../types';
 
 interface ChatScreenProps {
+  agentId: string;
   roomId: string;
   roomName: string;
   roomEmoji: string;
   onBack: () => void;
 }
 
-export function ChatScreen({ roomId, roomName, roomEmoji, onBack }: ChatScreenProps) {
+export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: ChatScreenProps) {
   const { theme, isDark } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(true);
@@ -68,7 +71,7 @@ export function ChatScreen({ roomId, roomName, roomEmoji, onBack }: ChatScreenPr
       // Update room's last message preview
       const lastMsg = messages[messages.length - 1];
       if (lastMsg) {
-        updateRoom(roomId, {
+        updateRoom(agentId, roomId, {
           lastMessage: lastMsg.content.slice(0, 50),
           lastMessageAt: lastMsg.timestamp,
         });

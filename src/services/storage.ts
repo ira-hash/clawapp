@@ -1,28 +1,106 @@
 /**
  * Local Storage Service
  * 
- * Handles persistent storage for messages, rooms, settings
+ * Handles persistent storage for agents, rooms, messages, settings
  * No external server required - all data stays on device.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Message, ChatRoom } from '../types';
+import { Message, ChatRoom, GatewayConfig } from '../types';
 
 const KEYS = {
-  MESSAGES: 'claw_messages_',
-  ROOMS: 'claw_rooms',
+  AGENTS: 'claw_agents',
+  ROOMS: 'claw_rooms_',  // + agentId
+  MESSAGES: 'claw_messages_',  // + roomId
   SETTINGS: 'claw_settings',
   THEME: 'claw_theme',
 };
 
+// ============ Agent Types ============
+
+export interface StoredAgent {
+  id: string;
+  name: string;
+  emoji: string;
+  gateway: GatewayConfig;
+  createdAt: number;
+  lastActiveAt?: number;
+}
+
+// ============ Agents ============
+
+/**
+ * Load all agents
+ */
+export async function loadAgents(): Promise<StoredAgent[]> {
+  try {
+    const data = await AsyncStorage.getItem(KEYS.AGENTS);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('[Storage] Failed to load agents:', e);
+  }
+  return [];
+}
+
+/**
+ * Save all agents
+ */
+export async function saveAgents(agents: StoredAgent[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(KEYS.AGENTS, JSON.stringify(agents));
+  } catch (e) {
+    console.error('[Storage] Failed to save agents:', e);
+  }
+}
+
+/**
+ * Add a new agent
+ */
+export async function addAgent(agent: StoredAgent): Promise<void> {
+  const agents = await loadAgents();
+  agents.push(agent);
+  await saveAgents(agents);
+}
+
+/**
+ * Update an agent
+ */
+export async function updateAgent(agentId: string, updates: Partial<StoredAgent>): Promise<void> {
+  const agents = await loadAgents();
+  const index = agents.findIndex(a => a.id === agentId);
+  if (index !== -1) {
+    agents[index] = { ...agents[index], ...updates };
+    await saveAgents(agents);
+  }
+}
+
+/**
+ * Delete an agent and all its rooms/messages
+ */
+export async function deleteAgent(agentId: string): Promise<void> {
+  // Delete rooms and messages first
+  const rooms = await loadRooms(agentId);
+  for (const room of rooms) {
+    await clearMessages(room.id);
+  }
+  await AsyncStorage.removeItem(KEYS.ROOMS + agentId);
+  
+  // Delete agent
+  const agents = await loadAgents();
+  const filtered = agents.filter(a => a.id !== agentId);
+  await saveAgents(filtered);
+}
+
 // ============ Chat Rooms ============
 
 /**
- * Load all chat rooms
+ * Load all chat rooms for an agent
  */
-export async function loadRooms(): Promise<ChatRoom[]> {
+export async function loadRooms(agentId: string): Promise<ChatRoom[]> {
   try {
-    const data = await AsyncStorage.getItem(KEYS.ROOMS);
+    const data = await AsyncStorage.getItem(KEYS.ROOMS + agentId);
     if (data) {
       return JSON.parse(data);
     }
@@ -33,11 +111,11 @@ export async function loadRooms(): Promise<ChatRoom[]> {
 }
 
 /**
- * Save all chat rooms
+ * Save all chat rooms for an agent
  */
-export async function saveRooms(rooms: ChatRoom[]): Promise<void> {
+export async function saveRooms(agentId: string, rooms: ChatRoom[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEYS.ROOMS, JSON.stringify(rooms));
+    await AsyncStorage.setItem(KEYS.ROOMS + agentId, JSON.stringify(rooms));
   } catch (e) {
     console.error('[Storage] Failed to save rooms:', e);
   }
@@ -46,31 +124,31 @@ export async function saveRooms(rooms: ChatRoom[]): Promise<void> {
 /**
  * Add a new chat room
  */
-export async function addRoom(room: ChatRoom): Promise<void> {
-  const rooms = await loadRooms();
+export async function addRoom(agentId: string, room: ChatRoom): Promise<void> {
+  const rooms = await loadRooms(agentId);
   rooms.push(room);
-  await saveRooms(rooms);
+  await saveRooms(agentId, rooms);
 }
 
 /**
  * Update a chat room
  */
-export async function updateRoom(roomId: string, updates: Partial<ChatRoom>): Promise<void> {
-  const rooms = await loadRooms();
+export async function updateRoom(agentId: string, roomId: string, updates: Partial<ChatRoom>): Promise<void> {
+  const rooms = await loadRooms(agentId);
   const index = rooms.findIndex(r => r.id === roomId);
   if (index !== -1) {
     rooms[index] = { ...rooms[index], ...updates };
-    await saveRooms(rooms);
+    await saveRooms(agentId, rooms);
   }
 }
 
 /**
  * Delete a chat room and its messages
  */
-export async function deleteRoom(roomId: string): Promise<void> {
-  const rooms = await loadRooms();
+export async function deleteRoom(agentId: string, roomId: string): Promise<void> {
+  const rooms = await loadRooms(agentId);
   const filtered = rooms.filter(r => r.id !== roomId);
-  await saveRooms(filtered);
+  await saveRooms(agentId, filtered);
   await clearMessages(roomId);
 }
 
