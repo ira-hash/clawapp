@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Claw",
+    "slug": "claw",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A1A1A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.clawdbot.claw",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Claw uses the camera to scan QR codes for pairing",
+        "NSMicrophoneUsageDescription": "Claw uses the microphone for voice messages"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1A1A1A"
+      },
+      "package": "com.clawdbot.claw",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Claw to access your camera to scan QR codes"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "claw"
+      }
+    }
+  }
+}
