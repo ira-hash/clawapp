@@ -11,7 +11,8 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
-  status?: 'sending' | 'sent' | 'error';
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'error' | 'streaming';
+  replyTo?: string;
   metadata?: MessageMetadata;
 }
 
@@ -27,6 +28,7 @@ export interface MessageMetadata {
 export interface InlineButton {
   text: string;
   callback_data: string;
+  url?: string;
 }
 
 export interface CanvasContent {
@@ -34,19 +36,37 @@ export interface CanvasContent {
   content: string;
   width?: number;
   height?: number;
+  title?: string;
 }
 
 export interface MediaAttachment {
-  type: 'image' | 'audio' | 'video' | 'file';
+  type: 'image' | 'audio' | 'video' | 'file' | 'voice';
   url: string;
   mimeType?: string;
   filename?: string;
   size?: number;
+  duration?: number;  // For audio/video
+  thumbnail?: string;
 }
 
 export interface CodeBlock {
   language: string;
   code: string;
+}
+
+// Agent Types
+export interface Agent {
+  id: string;
+  name: string;
+  avatar?: string;
+  emoji?: string;
+  model?: string;
+  gateway: GatewayConfig;
+  lastMessage?: Message;
+  unreadCount: number;
+  isOnline: boolean;
+  createdAt: number;
+  lastActiveAt?: number;
 }
 
 // Pairing Types
@@ -57,12 +77,12 @@ export interface PairingCode {
 }
 
 export interface PairingQR {
-  url: string;  // Full gateway URL with token
+  url: string;
 }
 
 // WebSocket Types
 export interface WSMessage {
-  type: 'message' | 'typing' | 'thinking' | 'stream' | 'buttons' | 'canvas' | 'error';
+  type: 'message' | 'typing' | 'thinking' | 'stream' | 'buttons' | 'canvas' | 'error' | 'connected' | 'disconnected';
   payload: any;
 }
 
@@ -78,9 +98,31 @@ export interface Session {
 
 // App State Types
 export interface AppState {
-  session: Session | null;
-  messages: Message[];
+  agents: Agent[];
+  currentAgentId: string | null;
+  messages: Record<string, Message[]>;  // agentId -> messages
   isConnected: boolean;
-  isTyping: boolean;
-  isThinking: boolean;
+}
+
+// ClawdHub Types
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  author: string;
+  version: string;
+  rating: number;
+  installs: number;
+  category: string;
+  tags: string[];
+}
+
+// Settings Types
+export interface Settings {
+  theme: 'light' | 'dark' | 'system';
+  fontSize: 'small' | 'medium' | 'large';
+  notifications: boolean;
+  haptics: boolean;
+  biometricLock: boolean;
 }
