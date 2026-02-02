@@ -24,13 +24,14 @@ import { Message } from '../../types';
 interface SwipeableMessageProps {
   message: Message;
   onReply: (message: Message) => void;
+  onDelete?: (message: Message) => void;
   children: React.ReactNode;
 }
 
 const SWIPE_THRESHOLD = 50;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-export function SwipeableMessage({ message, onReply, children }: SwipeableMessageProps) {
+export function SwipeableMessage({ message, onReply, onDelete, children }: SwipeableMessageProps) {
   const { theme } = useTheme();
   const swipeableRef = useRef<Swipeable>(null);
   const hasTriggered = useRef(false);
@@ -81,18 +82,64 @@ export function SwipeableMessage({ message, onReply, children }: SwipeableMessag
     );
   }, [theme]);
 
+  const renderRightActions = useCallback((
+    progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>
+  ) => {
+    if (!onDelete) return null;
+    
+    const scale = dragX.interpolate({
+      inputRange: [-SWIPE_THRESHOLD - 20, -SWIPE_THRESHOLD, 0],
+      outputRange: [1.2, 1, 0.5],
+      extrapolate: 'clamp',
+    });
+
+    const opacity = dragX.interpolate({
+      inputRange: [-SWIPE_THRESHOLD, -SWIPE_THRESHOLD / 2, 0],
+      outputRange: [1, 0.5, 0],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <Animated.View 
+        style={[
+          styles.rightActions,
+          {
+            opacity,
+            transform: [{ scale }],
+          }
+        ]}
+      >
+        <View style={[styles.deleteIconContainer, { backgroundColor: theme.error + '20' }]}>
+          <Ionicons 
+            name="trash" 
+            size={20} 
+            color={theme.error} 
+          />
+        </View>
+      </Animated.View>
+    );
+  }, [theme, onDelete]);
+
   const handleSwipeableOpen = useCallback((direction: 'left' | 'right') => {
     if (direction === 'left' && !hasTriggered.current) {
       hasTriggered.current = true;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       onReply(message);
-      // 자동으로 닫기
+      setTimeout(() => {
+        swipeableRef.current?.close();
+        hasTriggered.current = false;
+      }, 100);
+    } else if (direction === 'right' && !hasTriggered.current && onDelete) {
+      hasTriggered.current = true;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      onDelete(message);
       setTimeout(() => {
         swipeableRef.current?.close();
         hasTriggered.current = false;
       }, 100);
     }
-  }, [message, onReply]);
+  }, [message, onReply, onDelete]);
 
   const handleSwipeableClose = useCallback(() => {
     hasTriggered.current = false;
@@ -102,11 +149,14 @@ export function SwipeableMessage({ message, onReply, children }: SwipeableMessag
     <Swipeable
       ref={swipeableRef}
       renderLeftActions={renderLeftActions}
+      renderRightActions={onDelete ? renderRightActions : undefined}
       onSwipeableOpen={handleSwipeableOpen}
       onSwipeableClose={handleSwipeableClose}
       leftThreshold={SWIPE_THRESHOLD}
+      rightThreshold={SWIPE_THRESHOLD}
       friction={2}
       overshootLeft={false}
+      overshootRight={false}
       containerStyle={styles.swipeableContainer}
     >
       {children}
@@ -125,6 +175,19 @@ const styles = StyleSheet.create({
     marginRight: -8,
   },
   replyIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rightActions: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 60,
+    marginLeft: -8,
+  },
+  deleteIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,

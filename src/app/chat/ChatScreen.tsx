@@ -288,7 +288,7 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   }, [messages]);
 
   const renderMessage = ({ item }: { item: Message }) => (
-    <SwipeableMessage message={item} onReply={handleReply}>
+    <SwipeableMessage message={item} onReply={handleReply} onDelete={handleDeleteMessage}>
       <MessageBubble message={item} onButtonPress={handleButtonPress} />
     </SwipeableMessage>
   );
@@ -297,6 +297,10 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
     setMessages([]);
     await saveMessages(roomId, []);
   }, [roomId]);
+
+  const handleDeleteMessage = useCallback((message: Message) => {
+    setMessages(prev => prev.filter(m => m.id !== message.id));
+  }, []);
 
   const renderHeader = () => (
     <ChatHeader
