@@ -135,3 +135,24 @@ export interface Settings {
   haptics: boolean;
   biometricLock: boolean;
 }
+
+// Navigation Types
+export type RootStackParamList = {
+  AgentList: undefined;
+  RoomList: { agentId: string };
+  Chat: { agentId: string; roomId: string };
+  Pairing: undefined;
+  Settings: undefined;
+};
+
+// Connection Status
+export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'reconnecting' | 'error';
+
+// Message Status
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'error';
+
+// Toast Types
+export type ToastType = 'success' | 'error' | 'warning' | 'info';
+
+// Button Variants
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
