@@ -14,6 +14,7 @@ export { ConfirmModal } from './ConfirmModal';
 export { Input } from './Input';
 export { Divider } from './Divider';
 export { ListItem } from './ListItem';
+export { BottomSheet } from './BottomSheet';
 
 // Re-export chat components
 export * from './chat';
