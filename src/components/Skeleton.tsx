@@ -16,7 +16,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { borderRadius } from '../theme';
 
 interface SkeletonProps {
-  width?: number | string;
+  width?: number | `${number}%`;
   height?: number;
   borderRadius?: number;
   style?: ViewStyle;
