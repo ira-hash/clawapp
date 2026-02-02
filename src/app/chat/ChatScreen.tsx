@@ -22,7 +22,7 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
-import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader, SearchBar } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
@@ -49,6 +49,10 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<number[]>([]);
+  const [searchIndex, setSearchIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const contentHeight = useRef(0);
   const scrollOffset = useRef(0);
@@ -220,6 +224,52 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
     setIsRefreshing(false);
   }, [roomId]);
 
+  // Search functionality
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim().length === 0) {
+      setSearchResults([]);
+      setSearchIndex(0);
+      return;
+    }
+    
+    const lowerQuery = query.toLowerCase();
+    const results: number[] = [];
+    messages.forEach((msg, index) => {
+      if (msg.content.toLowerCase().includes(lowerQuery)) {
+        results.push(index);
+      }
+    });
+    setSearchResults(results);
+    setSearchIndex(0);
+    
+    // Scroll to first result
+    if (results.length > 0) {
+      flatListRef.current?.scrollToIndex({ index: results[0], animated: true });
+    }
+  }, [messages]);
+
+  const handleSearchPrev = useCallback(() => {
+    if (searchResults.length === 0) return;
+    const newIndex = (searchIndex - 1 + searchResults.length) % searchResults.length;
+    setSearchIndex(newIndex);
+    flatListRef.current?.scrollToIndex({ index: searchResults[newIndex], animated: true });
+  }, [searchResults, searchIndex]);
+
+  const handleSearchNext = useCallback(() => {
+    if (searchResults.length === 0) return;
+    const newIndex = (searchIndex + 1) % searchResults.length;
+    setSearchIndex(newIndex);
+    flatListRef.current?.scrollToIndex({ index: searchResults[newIndex], animated: true });
+  }, [searchResults, searchIndex]);
+
+  const handleSearchClose = useCallback(() => {
+    setShowSearch(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchIndex(0);
+  }, []);
+
   const handleButtonPress = (callbackData: string) => {
     gateway.sendButtonCallback(callbackData, roomId);
   };
@@ -250,6 +300,7 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
       isTyping={isTyping}
       isThinking={isThinking}
       onBack={onBack}
+      onSearchPress={() => setShowSearch(true)}
     />
   );
 
@@ -283,6 +334,17 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         {renderHeader()}
+
+        <SearchBar
+          visible={showSearch}
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          onClose={handleSearchClose}
+          resultCount={searchResults.length}
+          currentIndex={searchIndex}
+          onPrevious={handleSearchPrev}
+          onNext={handleSearchNext}
+        />
         
         {!isConnected && (
           <View style={[styles.reconnectBanner, { backgroundColor: theme.warning }]}>

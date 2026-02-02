@@ -28,6 +28,7 @@ interface ChatHeaderProps {
   isThinking?: boolean;
   onBack: () => void;
   onTitlePress?: () => void;
+  onSearchPress?: () => void;
 }
 
 export function ChatHeader({ 
@@ -38,6 +39,7 @@ export function ChatHeader({
   isThinking,
   onBack,
   onTitlePress,
+  onSearchPress,
 }: ChatHeaderProps) {
   const { theme } = useTheme();
 
@@ -91,6 +93,11 @@ export function ChatHeader({
 
       {/* Right actions */}
       <View style={styles.rightActions}>
+        {onSearchPress && (
+          <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
+            <Ionicons name="search" size={22} color={theme.textSecondary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.iconButton}>
           <Ionicons name="ellipsis-vertical" size={22} color={theme.textSecondary} />
         </TouchableOpacity>
