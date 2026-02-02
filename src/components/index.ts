@@ -15,6 +15,7 @@ export { Input } from './Input';
 export { Divider } from './Divider';
 export { ListItem } from './ListItem';
 export { BottomSheet } from './BottomSheet';
+export { ActionSheet, type ActionSheetOption } from './ActionSheet';
 
 // Re-export chat components
 export * from './chat';
