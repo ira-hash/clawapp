@@ -10,7 +10,7 @@
  * - Images
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
   ActionSheetIOS,
   Platform,
   Modal,
+  Animated,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -33,13 +34,43 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 interface MessageBubbleProps {
   message: Message;
   onButtonPress?: (callbackData: string) => void;
+  animated?: boolean;
 }
 
-export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
+export function MessageBubble({ message, onButtonPress, animated = true }: MessageBubbleProps) {
   const { theme, isDark } = useTheme();
   const isUser = message.role === 'user';
   const [imageError, setImageError] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
+  
+  // Animation
+  const slideAnim = useRef(new Animated.Value(animated ? 20 : 0)).current;
+  const opacityAnim = useRef(new Animated.Value(animated ? 0 : 1)).current;
+  const scaleAnim = useRef(new Animated.Value(animated ? 0.95 : 1)).current;
+
+  useEffect(() => {
+    if (animated) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 10,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 120,
+          friction: 8,
+        }),
+      ]).start();
+    }
+  }, [animated, slideAnim, opacityAnim, scaleAnim]);
 
   const formatTime = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -188,29 +219,38 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
   };
 
   return (
-    <Pressable
-      onLongPress={handleLongPress}
-      delayLongPress={500}
+    <Animated.View
       style={[
         styles.container,
         isUser ? styles.userContainer : styles.assistantContainer,
+        {
+          opacity: opacityAnim,
+          transform: [
+            { translateY: slideAnim },
+            { scale: scaleAnim },
+          ],
+        },
       ]}
     >
-      <View
-        style={[
-          styles.bubble,
-          isUser 
-            ? [styles.userBubble, { backgroundColor: theme.messageBubbleUser }]
-            : [styles.assistantBubble, { backgroundColor: theme.messageBubbleAssistant }],
-        ]}
+      <Pressable
+        onLongPress={handleLongPress}
+        delayLongPress={500}
       >
-        {renderReplyContext()}
-        {renderImage()}
-        {renderContent()}
-        {renderButtons()}
-        
-        {/* Time and status */}
-        <View style={styles.footer}>
+        <View
+          style={[
+            styles.bubble,
+            isUser 
+              ? [styles.userBubble, { backgroundColor: theme.messageBubbleUser }]
+              : [styles.assistantBubble, { backgroundColor: theme.messageBubbleAssistant }],
+          ]}
+        >
+          {renderReplyContext()}
+          {renderImage()}
+          {renderContent()}
+          {renderButtons()}
+          
+          {/* Time and status */}
+          <View style={styles.footer}>
           <Text style={[
             styles.time, 
             { color: isUser ? 'rgba(255,255,255,0.6)' : theme.textTertiary }
@@ -223,8 +263,9 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
             </Text>
           )}
         </View>
-      </View>
-    </Pressable>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
