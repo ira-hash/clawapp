@@ -19,6 +19,8 @@ export { ActionSheet, type ActionSheetOption } from './ActionSheet';
 export { Chip } from './Chip';
 export { ProgressBar } from './ProgressBar';
 export { Skeleton, SkeletonText, SkeletonAvatar, SkeletonListItem, SkeletonCard } from './Skeleton';
+export { RefreshControl } from './RefreshControl';
+export { KeyboardAvoiding } from './KeyboardAvoiding';
 
 // Re-export chat components
 export * from './chat';
