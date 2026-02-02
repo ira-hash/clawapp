@@ -41,6 +41,11 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
   const [imageError, setImageError] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
 
+  const formatTime = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const handleLongPress = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -204,12 +209,20 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
         {renderContent()}
         {renderButtons()}
         
-        {/* Status indicator for user messages */}
-        {isUser && message.status && (
-          <Text style={[styles.status, { color: 'rgba(255,255,255,0.6)' }]}>
-            {message.status === 'sending' ? '○' : message.status === 'sent' ? '✓' : '✓✓'}
+        {/* Time and status */}
+        <View style={styles.footer}>
+          <Text style={[
+            styles.time, 
+            { color: isUser ? 'rgba(255,255,255,0.6)' : theme.textTertiary }
+          ]}>
+            {formatTime(message.timestamp)}
           </Text>
-        )}
+          {isUser && message.status && (
+            <Text style={[styles.status, { color: 'rgba(255,255,255,0.6)' }]}>
+              {message.status === 'sending' ? ' ○' : message.status === 'sent' ? ' ✓' : ' ✓✓'}
+            </Text>
+          )}
+        </View>
       </View>
     </Pressable>
   );
@@ -286,6 +299,15 @@ const styles = StyleSheet.create({
   },
   replyText: {
     fontSize: 13,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  time: {
+    fontSize: 11,
   },
   imageViewerContainer: {
     flex: 1,
