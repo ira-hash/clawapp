@@ -15,6 +15,9 @@ import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
 // Components
 import { TabBar, TabName } from './src/components/TabBar';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { ToastProvider } from './src/components/Toast';
+import { NetworkBanner } from './src/components/NetworkBanner';
 
 // Screens
 import { AgentListScreen } from './src/app/agents/AgentListScreen';
@@ -183,6 +186,8 @@ function AppContent() {
 
   return (
     <GestureHandlerRootView style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* NetworkBanner는 gateway 연결 상태와 함께 사용 - 추후 통합 */}
+      
       {/* Main Tab View */}
       {currentScreen === 'tabs' && (
         <View style={styles.container}>
@@ -229,9 +234,13 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
