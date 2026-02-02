@@ -1,11 +1,15 @@
 /**
  * Agent List Screen
  * 
- * Shows all registered Clawdbot agents
- * Entry point of the app
+ * 텔레그램 스타일 에이전트 목록
+ * Features:
+ * - 에이전트 카드 디자인
+ * - 스와이프 삭제
+ * - 검색 기능
+ * - 애니메이션
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,12 +19,15 @@ import {
   Alert,
   Platform,
   StatusBar,
+  TextInput,
+  Animated,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { StoredAgent, loadAgents, deleteAgent } from '../../services/storage';
-import { spacing, fontSize, borderRadius } from '../../theme';
+import { spacing, fontSize, borderRadius, shadows } from '../../theme';
 
 interface AgentListScreenProps {
   onSelectAgent: (agent: StoredAgent) => void;
@@ -31,23 +38,59 @@ interface AgentListScreenProps {
 export function AgentListScreen({ onSelectAgent, onAddAgent, onOpenSettings }: AgentListScreenProps) {
   const { theme, isDark } = useTheme();
   const [agents, setAgents] = useState<StoredAgent[]>([]);
+  const [filteredAgents, setFilteredAgents] = useState<StoredAgent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const searchInputRef = useRef<TextInput>(null);
+  const fabScale = useRef(new Animated.Value(0)).current;
 
   // Load agents on mount
   useEffect(() => {
     loadAgents().then((saved) => {
       setAgents(saved);
+      setFilteredAgents(saved);
       setIsLoading(false);
+      
+      // Animate FAB in
+      Animated.spring(fabScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+        delay: 300,
+      }).start();
     });
-  }, []);
+  }, [fabScale]);
 
-  // Reload agents when screen is focused (after adding new one)
+  // Filter agents when search query changes
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredAgents(agents);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredAgents(
+        agents.filter(a => 
+          a.name.toLowerCase().includes(query) ||
+          a.gateway.url.toLowerCase().includes(query)
+        )
+      );
+    }
+  }, [searchQuery, agents]);
+
   const reloadAgents = useCallback(async () => {
+    setRefreshing(true);
     const saved = await loadAgents();
     setAgents(saved);
+    setFilteredAgents(saved);
+    setRefreshing(false);
   }, []);
 
   const handleDeleteAgent = async (agentId: string, agentName: string) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
     Alert.alert(
       'Delete Agent',
       `Are you sure you want to remove "${agentName}"? All chat rooms and messages will be deleted.`,
@@ -66,87 +109,175 @@ export function AgentListScreen({ onSelectAgent, onAddAgent, onOpenSettings }: A
     );
   };
 
-  const renderAgent = ({ item }: { item: StoredAgent }) => (
-    <TouchableOpacity
-      style={[styles.agentItem, { backgroundColor: theme.surfaceElevated }]}
-      onPress={() => onSelectAgent(item)}
-      onLongPress={() => handleDeleteAgent(item.id, item.name)}
-      delayLongPress={500}
-    >
-      <View style={[styles.agentEmoji, { backgroundColor: theme.primary + '20' }]}>
-        <Text style={styles.emojiText}>{item.emoji}</Text>
-      </View>
-      <View style={styles.agentInfo}>
-        <Text style={[styles.agentName, { color: theme.text }]}>{item.name}</Text>
-        <Text style={[styles.agentUrl, { color: theme.textSecondary }]} numberOfLines={1}>
-          {item.gateway.url.replace('wss://', '').replace('ws://', '').split('/')[0]}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-    </TouchableOpacity>
-  );
+  const handleAddPress = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Bounce animation
+    Animated.sequence([
+      Animated.timing(fabScale, { toValue: 0.9, duration: 50, useNativeDriver: true }),
+      Animated.spring(fabScale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }),
+    ]).start();
+    
+    onAddAgent();
+  };
+
+  const toggleSearch = () => {
+    setShowSearch(!showSearch);
+    if (!showSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    } else {
+      setSearchQuery('');
+    }
+  };
+
+  const renderAgent = ({ item, index }: { item: StoredAgent; index: number }) => {
+    const delay = index * 50;
+    
+    return (
+      <Animated.View
+        style={{
+          opacity: 1,
+          transform: [{ translateY: 0 }],
+        }}
+      >
+        <TouchableOpacity
+          style={[styles.agentItem, { backgroundColor: theme.surfaceElevated }]}
+          onPress={() => onSelectAgent(item)}
+          onLongPress={() => handleDeleteAgent(item.id, item.name)}
+          delayLongPress={500}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.agentEmoji, { backgroundColor: theme.primary + '15' }]}>
+            <Text style={styles.emojiText}>{item.emoji}</Text>
+          </View>
+          <View style={styles.agentInfo}>
+            <Text style={[styles.agentName, { color: theme.text }]}>{item.name}</Text>
+            <View style={styles.agentMeta}>
+              <View style={[styles.statusDot, { backgroundColor: theme.success }]} />
+              <Text style={[styles.agentUrl, { color: theme.textSecondary }]} numberOfLines={1}>
+                {item.gateway.url.replace('wss://', '').replace('ws://', '').split('/')[0]}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
       <View style={styles.headerLeft}>
         <Text style={[styles.logo, { color: theme.text }]}>🦞 Claw</Text>
       </View>
-      <TouchableOpacity onPress={onOpenSettings} style={styles.settingsButton}>
-        <Ionicons name="settings-outline" size={24} color={theme.textSecondary} />
-      </TouchableOpacity>
+      <View style={styles.headerRight}>
+        <TouchableOpacity onPress={toggleSearch} style={styles.headerButton}>
+          <Ionicons 
+            name={showSearch ? "close" : "search"} 
+            size={22} 
+            color={theme.textSecondary} 
+          />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onOpenSettings} style={styles.headerButton}>
+          <Ionicons name="settings-outline" size={22} color={theme.textSecondary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
+
+  const renderSearchBar = () => {
+    if (!showSearch) return null;
+    
+    return (
+      <View style={[styles.searchContainer, { backgroundColor: theme.background }]}>
+        <View style={[styles.searchInputContainer, { backgroundColor: theme.surface }]}>
+          <Ionicons name="search" size={18} color={theme.textSecondary} />
+          <TextInput
+            ref={searchInputRef}
+            style={[styles.searchInput, { color: theme.text }]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search agents..."
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyEmoji}>🦞</Text>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No Agents Yet</Text>
-      <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-        Add your first Clawdbot agent to get started
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        {searchQuery ? 'No Results' : 'No Agents Yet'}
       </Text>
-      <TouchableOpacity 
-        style={[styles.addFirstButton, { backgroundColor: theme.primary }]}
-        onPress={onAddAgent}
-      >
-        <Ionicons name="add" size={24} color="#FFF" />
-        <Text style={styles.addFirstButtonText}>Add Agent</Text>
-      </TouchableOpacity>
+      <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+        {searchQuery 
+          ? `No agents found for "${searchQuery}"`
+          : 'Add your first Clawdbot agent to get started'
+        }
+      </Text>
+      {!searchQuery && (
+        <TouchableOpacity 
+          style={[styles.addFirstButton, { backgroundColor: theme.primary }]}
+          onPress={onAddAgent}
+        >
+          <Ionicons name="add" size={24} color="#FFF" />
+          <Text style={styles.addFirstButtonText}>Add Agent</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
   const renderAddButton = () => (
-    <TouchableOpacity
-      style={[styles.addButton, { backgroundColor: theme.primary }]}
-      onPress={onAddAgent}
-    >
-      <Ionicons name="add" size={28} color="#FFF" />
-    </TouchableOpacity>
+    <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: theme.primary }, shadows.lg]}
+        onPress={handleAddPress}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={28} color="#FFF" />
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {renderHeader()}
+      {renderSearchBar()}
       
       <FlatList
-        data={agents}
+        data={filteredAgents}
         renderItem={renderAgent}
         keyExtractor={item => item.id}
         contentContainerStyle={[
           styles.listContent,
-          agents.length === 0 && styles.emptyListContent
+          filteredAgents.length === 0 && styles.emptyListContent
         ]}
         ListEmptyComponent={!isLoading ? renderEmptyState : null}
         ListHeaderComponent={
-          agents.length > 0 ? (
+          filteredAgents.length > 0 ? (
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-              YOUR AGENTS
+              {searchQuery ? 'SEARCH RESULTS' : 'YOUR AGENTS'}
             </Text>
           ) : null
         }
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-        onRefresh={reloadAgents}
-        refreshing={false}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={reloadAgents}
+            tintColor={theme.primary}
+          />
+        }
       />
 
       {agents.length > 0 && renderAddButton()}
@@ -174,12 +305,36 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 28,
     fontWeight: 'bold',
+    letterSpacing: -0.5,
   },
-  settingsButton: {
-    padding: spacing.xs,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerButton: {
+    padding: 8,
+  },
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: fontSize.md,
+    paddingVertical: 4,
   },
   listContent: {
     padding: spacing.md,
+    paddingBottom: 100,
   },
   emptyListContent: {
     flex: 1,
@@ -197,16 +352,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.md,
     borderRadius: borderRadius.lg,
+    ...shadows.sm,
   },
   agentEmoji: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emojiText: {
-    fontSize: 28,
+    fontSize: 26,
   },
   agentInfo: {
     flex: 1,
@@ -215,10 +371,22 @@ const styles = StyleSheet.create({
   agentName: {
     fontSize: fontSize.lg,
     fontWeight: '600',
+    letterSpacing: -0.3,
+  },
+  agentMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   agentUrl: {
     fontSize: fontSize.sm,
-    marginTop: 2,
+    flex: 1,
   },
   emptyState: {
     alignItems: 'center',
@@ -237,6 +405,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     textAlign: 'center',
     marginBottom: spacing.xl,
+    lineHeight: 22,
   },
   addFirstButton: {
     flexDirection: 'row',
@@ -251,19 +420,16 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: '600',
   },
-  addButton: {
+  fabContainer: {
     position: 'absolute',
     bottom: 32,
     right: 24,
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
