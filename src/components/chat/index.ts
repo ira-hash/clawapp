@@ -9,3 +9,4 @@ export { TypingIndicator } from './TypingIndicator';
 export { DateSeparator } from './DateSeparator';
 export { ChatHeader } from './ChatHeader';
 export { SearchBar } from './SearchBar';
+export { AgentProfileModal } from './AgentProfileModal';

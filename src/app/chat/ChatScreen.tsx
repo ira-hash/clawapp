@@ -22,7 +22,7 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
-import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader, SearchBar } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader, SearchBar, AgentProfileModal } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
@@ -53,6 +53,7 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<number[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
+  const [showProfile, setShowProfile] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const contentHeight = useRef(0);
   const scrollOffset = useRef(0);
@@ -292,6 +293,11 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
     </SwipeableMessage>
   );
 
+  const handleClearHistory = useCallback(async () => {
+    setMessages([]);
+    await saveMessages(roomId, []);
+  }, [roomId]);
+
   const renderHeader = () => (
     <ChatHeader
       title={roomName}
@@ -301,6 +307,7 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
       isThinking={isThinking}
       onBack={onBack}
       onSearchPress={() => setShowSearch(true)}
+      onTitlePress={() => setShowProfile(true)}
     />
   );
 
@@ -391,6 +398,16 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
           <ReplyPreview message={replyTo} onCancel={() => setReplyTo(null)} />
         )}
         <ChatInput onSend={handleSend} disabled={!isConnected} />
+
+        <AgentProfileModal
+          visible={showProfile}
+          onClose={() => setShowProfile(false)}
+          name={roomName}
+          emoji={roomEmoji}
+          isConnected={isConnected}
+          messageCount={messages.length}
+          onClearHistory={handleClearHistory}
+        />
       </SafeAreaView>
     </GestureHandlerRootView>
   );
