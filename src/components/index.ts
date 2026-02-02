@@ -8,6 +8,8 @@ export { ToastProvider, useToast } from './Toast';
 export { EmptyState } from './EmptyState';
 export { Avatar } from './Avatar';
 export { Badge } from './Badge';
+export { Button } from './Button';
+export { IconButton } from './IconButton';
 
 // Re-export chat components
 export * from './chat';
