@@ -11,6 +11,9 @@ export { Badge } from './Badge';
 export { Button } from './Button';
 export { IconButton } from './IconButton';
 export { ConfirmModal } from './ConfirmModal';
+export { Input } from './Input';
+export { Divider } from './Divider';
+export { ListItem } from './ListItem';
 
 // Re-export chat components
 export * from './chat';
