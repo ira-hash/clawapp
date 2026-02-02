@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.clawdbot.claw",
       "infoPlist": {
         "NSCameraUsageDescription": "Claw uses the camera to scan QR codes for pairing",
-        "NSMicrophoneUsageDescription": "Claw uses the microphone for voice messages"
+        "NSMicrophoneUsageDescription": "Claw uses the microphone for voice messages",
+        "NSFaceIDUsageDescription": "Claw uses Face ID to secure your chats"
       }
     },
     "android": {
