@@ -4,3 +4,5 @@ export { useDebounce } from './useDebounce';
 export { useKeyboard } from './useKeyboard';
 export { useAppState, useIsForeground } from './useAppState';
 export { useNetwork, useIsOnline } from './useNetwork';
+export { usePrevious } from './usePrevious';
+export { useInterval } from './useInterval';
