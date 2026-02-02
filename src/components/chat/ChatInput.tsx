@@ -7,6 +7,7 @@
  * - Image attachment
  * - Keyboard handling
  * - Haptic feedback
+ * - Slash commands autocomplete
  */
 
 import React, { useState, useRef } from 'react';
@@ -18,11 +19,13 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../contexts/ThemeContext';
+import { SlashCommands } from './SlashCommands';
 
 interface ChatInputProps {
   onSend: (text: string, image?: string) => void;
@@ -34,7 +37,26 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
+  const [showSlashCommands, setShowSlashCommands] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  const handleTextChange = (newText: string) => {
+    setText(newText);
+    
+    // Show slash commands when typing / at start
+    if (newText.startsWith('/') && !newText.includes(' ')) {
+      setShowSlashCommands(true);
+    } else {
+      setShowSlashCommands(false);
+    }
+  };
+
+  const handleSlashCommandSelect = (command: string) => {
+    setText(command + ' ');
+    setShowSlashCommands(false);
+    inputRef.current?.focus();
+  };
 
   const handleSend = async () => {
     const trimmedText = text.trim();
@@ -44,6 +66,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
     onSend(trimmedText, selectedImage || undefined);
     setText('');
     setSelectedImage(null);
+    setImagePreviewUri(null);
+    setShowSlashCommands(false);
   };
 
   const handlePickImage = async () => {
@@ -60,8 +84,8 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
     });
 
     if (!result.canceled && result.assets[0]) {
-      // Store as data URI for sending
       const asset = result.assets[0];
+      setImagePreviewUri(asset.uri);
       if (asset.base64) {
         const mimeType = asset.mimeType || 'image/jpeg';
         setSelectedImage(`data:${mimeType};base64,${asset.base64}`);
@@ -86,6 +110,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
 
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      setImagePreviewUri(asset.uri);
       if (asset.base64) {
         const mimeType = asset.mimeType || 'image/jpeg';
         setSelectedImage(`data:${mimeType};base64,${asset.base64}`);
@@ -98,6 +123,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
 
   const clearImage = () => {
     setSelectedImage(null);
+    setImagePreviewUri(null);
   };
 
   const canSend = (text.trim().length > 0 || selectedImage) && !disabled;
@@ -107,69 +133,73 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <View style={[styles.container, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
-        {/* Image preview */}
-        {selectedImage && (
-          <View style={[styles.imagePreviewContainer, { backgroundColor: theme.surface }]}>
-            <View style={styles.imagePreview}>
-              <Ionicons name="image" size={20} color={theme.primary} />
-              <View style={styles.imagePreviewText}>
-                <Ionicons name="checkmark-circle" size={16} color={theme.success} />
-              </View>
+      <View style={[styles.wrapper, { backgroundColor: theme.background }]}>
+        {/* Slash Commands Popup */}
+        <SlashCommands
+          input={text}
+          onSelect={handleSlashCommandSelect}
+          visible={showSlashCommands}
+        />
+
+        <View style={[styles.container, { borderTopColor: theme.border }]}>
+          {/* Image preview */}
+          {imagePreviewUri && (
+            <View style={[styles.imagePreviewContainer, { backgroundColor: theme.surface }]}>
+              <Image source={{ uri: imagePreviewUri }} style={styles.imagePreview} />
+              <TouchableOpacity onPress={clearImage} style={styles.clearImageButton}>
+                <Ionicons name="close-circle" size={24} color={theme.error} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={clearImage} style={styles.clearImageButton}>
-              <Ionicons name="close-circle" size={24} color={theme.error} />
+          )}
+
+          <View style={styles.inputRow}>
+            {/* Attachment button */}
+            <TouchableOpacity
+              onPress={handlePickImage}
+              onLongPress={handleCameraPress}
+              style={styles.attachButton}
+              disabled={disabled}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={28}
+                color={disabled ? theme.textTertiary : theme.primary}
+              />
+            </TouchableOpacity>
+
+            {/* Text input */}
+            <View style={[styles.inputContainer, { backgroundColor: theme.inputBackground }]}>
+              <TextInput
+                ref={inputRef}
+                style={[styles.input, { color: theme.text }]}
+                value={text}
+                onChangeText={handleTextChange}
+                placeholder={placeholder}
+                placeholderTextColor={theme.textSecondary}
+                multiline
+                maxLength={4000}
+                editable={!disabled}
+                returnKeyType="default"
+                blurOnSubmit={false}
+              />
+            </View>
+
+            {/* Send button */}
+            <TouchableOpacity
+              onPress={handleSend}
+              style={[
+                styles.sendButton,
+                { backgroundColor: canSend ? theme.primary : theme.inputBackground },
+              ]}
+              disabled={!canSend}
+            >
+              <Ionicons
+                name="arrow-up"
+                size={20}
+                color={canSend ? '#FFFFFF' : theme.textTertiary}
+              />
             </TouchableOpacity>
           </View>
-        )}
-
-        <View style={styles.inputRow}>
-          {/* Attachment button */}
-          <TouchableOpacity
-            onPress={handlePickImage}
-            onLongPress={handleCameraPress}
-            style={styles.attachButton}
-            disabled={disabled}
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={28}
-              color={disabled ? theme.textTertiary : theme.primary}
-            />
-          </TouchableOpacity>
-
-          {/* Text input */}
-          <View style={[styles.inputContainer, { backgroundColor: theme.inputBackground }]}>
-            <TextInput
-              ref={inputRef}
-              style={[styles.input, { color: theme.text }]}
-              value={text}
-              onChangeText={setText}
-              placeholder={placeholder}
-              placeholderTextColor={theme.textSecondary}
-              multiline
-              maxLength={4000}
-              editable={!disabled}
-              returnKeyType="default"
-              blurOnSubmit={false}
-            />
-          </View>
-
-          {/* Send button */}
-          <TouchableOpacity
-            onPress={handleSend}
-            style={[
-              styles.sendButton,
-              { backgroundColor: canSend ? theme.primary : theme.inputBackground },
-            ]}
-            disabled={!canSend}
-          >
-            <Ionicons
-              name="arrow-up"
-              size={20}
-              color={canSend ? '#FFFFFF' : theme.textTertiary}
-            />
-          </TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -177,31 +207,32 @@ export function ChatInput({ onSend, disabled = false, placeholder = '메시지 �
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    position: 'relative',
+  },
   container: {
     borderTopWidth: 1,
     paddingBottom: Platform.OS === 'ios' ? 34 : 8,
   },
   imagePreviewContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginHorizontal: 12,
     marginTop: 8,
-    padding: 8,
-    borderRadius: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
   },
   imagePreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  imagePreviewText: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    margin: 8,
   },
   clearImageButton: {
-    padding: 4,
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 12,
   },
   inputRow: {
     flexDirection: 'row',

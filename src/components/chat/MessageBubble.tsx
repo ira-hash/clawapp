@@ -3,7 +3,8 @@
  * 
  * Displays a single message with support for:
  * - User/Assistant styling
- * - Code blocks
+ * - Full markdown rendering
+ * - Code blocks with copy
  * - Inline buttons
  * - Long press to copy
  * - Images
@@ -20,11 +21,14 @@ import {
   Alert,
   ActionSheetIOS,
   Platform,
+  Modal,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { Message } from '../../types';
 import { useTheme } from '../../contexts/ThemeContext';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface MessageBubbleProps {
   message: Message;
@@ -35,9 +39,9 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
   const { theme, isDark } = useTheme();
   const isUser = message.role === 'user';
   const [imageError, setImageError] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
 
   const handleLongPress = async () => {
-    // Haptic feedback
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     if (Platform.OS === 'ios') {
@@ -53,7 +57,6 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
         }
       );
     } else {
-      // Android - just copy
       copyToClipboard();
     }
   };
@@ -61,61 +64,9 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
   const copyToClipboard = async () => {
     await Clipboard.setStringAsync(message.content);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // On Android, show a brief confirmation
     if (Platform.OS === 'android') {
       Alert.alert('Copied', 'Message copied to clipboard', [{ text: 'OK' }]);
     }
-  };
-
-  // Parse content for code blocks
-  const renderContent = () => {
-    const content = message.content;
-    const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match;
-    let key = 0;
-
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      // Add text before code block
-      if (match.index > lastIndex) {
-        const textBefore = content.slice(lastIndex, match.index);
-        parts.push(
-          <Text key={key++} style={[styles.messageText, { color: isUser ? theme.messageTextUser : theme.messageTextAssistant }]}>
-            {textBefore}
-          </Text>
-        );
-      }
-
-      // Add code block
-      const language = match[1] || '';
-      const code = match[2].trim();
-      parts.push(
-        <View key={key++} style={[styles.codeBlock, { backgroundColor: theme.codeBackground }]}>
-          {language && (
-            <Text style={[styles.codeLanguage, { color: theme.textSecondary }]}>{language}</Text>
-          )}
-          <Text style={[styles.codeText, { color: theme.codeText }]}>{code}</Text>
-        </View>
-      );
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIndex < content.length) {
-      parts.push(
-        <Text key={key++} style={[styles.messageText, { color: isUser ? theme.messageTextUser : theme.messageTextAssistant }]}>
-          {content.slice(lastIndex)}
-        </Text>
-      );
-    }
-
-    return parts.length > 0 ? parts : (
-      <Text style={[styles.messageText, { color: isUser ? theme.messageTextUser : theme.messageTextAssistant }]}>
-        {content}
-      </Text>
-    );
   };
 
   const renderButtons = () => {
@@ -146,12 +97,64 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
     if (!media || imageError) return null;
 
     return (
-      <Image
-        source={{ uri: media }}
-        style={styles.image}
-        resizeMode="cover"
-        onError={() => setImageError(true)}
-      />
+      <>
+        <Pressable onPress={() => setShowImageViewer(true)}>
+          <Image
+            source={{ uri: media }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        </Pressable>
+
+        {/* Fullscreen Image Viewer */}
+        <Modal
+          visible={showImageViewer}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowImageViewer(false)}
+        >
+          <View style={styles.imageViewerContainer}>
+            <Pressable 
+              style={styles.imageViewerBackground}
+              onPress={() => setShowImageViewer(false)}
+            >
+              <Image
+                source={{ uri: media }}
+                style={styles.fullImage}
+                resizeMode="contain"
+              />
+            </Pressable>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowImageViewer(false)}
+            >
+              <Ionicons name="close-circle" size={36} color="white" />
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      </>
+    );
+  };
+
+  // Check if content has markdown (code blocks, headers, lists, etc.)
+  const hasMarkdown = (text: string): boolean => {
+    return /```|^#{1,6}\s|^\s*[-*]\s|^\s*\d+\.\s|`[^`]+`|\*\*|\*[^*]+\*|__|_[^_]+_|~~|\[.+\]\(.+\)|^>/m.test(text);
+  };
+
+  const renderContent = () => {
+    const content = message.content;
+    
+    // Use markdown renderer for assistant messages or if content has markdown
+    if (!isUser || hasMarkdown(content)) {
+      return <MarkdownRenderer content={content} isUser={isUser} />;
+    }
+
+    // Plain text for simple user messages
+    return (
+      <Text style={[styles.messageText, { color: theme.messageTextUser }]}>
+        {content}
+      </Text>
     );
   };
 
@@ -214,23 +217,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
   },
-  codeBlock: {
-    marginVertical: 8,
-    padding: 12,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  codeLanguage: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  codeText: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontSize: 13,
-    lineHeight: 18,
-  },
   buttonsContainer: {
     marginTop: 8,
     gap: 8,
@@ -260,5 +246,27 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginBottom: 8,
+  },
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerBackground: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImage: {
+    width: '100%',
+    height: '100%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
   },
 });

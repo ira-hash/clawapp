@@ -15,10 +15,12 @@ import {
   Alert,
   Platform,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ThemeMode } from '../../services/storage';
+import { notifications } from '../../services/notifications';
 import { spacing, fontSize, borderRadius } from '../../theme';
 
 interface SettingsScreenProps {
@@ -28,10 +30,34 @@ interface SettingsScreenProps {
 export function SettingsScreen({ onLogout }: SettingsScreenProps) {
   const { theme, isDark, themeMode, setThemeMode } = useTheme();
   const [haptics, setHaptics] = useState(true);
-  const [notifications, setNotifications] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // Load notification setting on mount
+  useEffect(() => {
+    notifications.isEnabled().then(setNotificationsEnabled);
+  }, []);
 
   const handleThemeChange = (mode: ThemeMode) => {
     setThemeMode(mode);
+  };
+
+  const handleNotificationToggle = async (enabled: boolean) => {
+    setNotificationsEnabled(enabled);
+    await notifications.setEnabled(enabled);
+    
+    if (enabled) {
+      const token = await notifications.registerForPushNotifications();
+      if (!token) {
+        Alert.alert(
+          'Notifications',
+          'Please enable notifications in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => setNotificationsEnabled(false) },
+            { text: 'Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -43,6 +69,12 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
         { text: 'Log Out', style: 'destructive', onPress: onLogout },
       ]
     );
+  };
+
+  const openLink = (url: string) => {
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Error', 'Could not open link');
+    });
   };
 
   const renderSectionHeader = (title: string) => (
@@ -147,19 +179,19 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
             setHaptics
           )}
           {renderToggle(
-            'Notifications',
-            'Receive push notifications',
-            notifications,
-            setNotifications
+            'Push Notifications',
+            'Receive message alerts when app is closed',
+            notificationsEnabled,
+            handleNotificationToggle
           )}
         </View>
 
         {/* About */}
         {renderSectionHeader('ABOUT')}
         <View style={styles.settingsGroup}>
-          {renderButton('Help & Support', 'help-circle-outline', () => {})}
-          {renderButton('Privacy Policy', 'shield-outline', () => {})}
-          {renderButton('Terms of Service', 'document-text-outline', () => {})}
+          {renderButton('Documentation', 'book-outline', () => openLink('https://docs.clawd.bot'))}
+          {renderButton('GitHub', 'logo-github', () => openLink('https://github.com/clawdbot/clawdbot'))}
+          {renderButton('Discord', 'logo-discord', () => openLink('https://discord.com/invite/clawd'))}
         </View>
 
         {/* Danger Zone */}
@@ -171,7 +203,7 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Version */}
         <View style={styles.versionContainer}>
           <Text style={[styles.versionText, { color: theme.textTertiary }]}>
-            Claw v0.4.0
+            Claw v0.6.0
           </Text>
           <Text style={[styles.versionText, { color: theme.textTertiary }]}>
             Made with 🦞 for Clawdbot
