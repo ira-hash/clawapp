@@ -7,3 +7,4 @@ export { ReplyPreview } from './ReplyPreview';
 export { ScrollToBottomButton } from './ScrollToBottomButton';
 export { TypingIndicator } from './TypingIndicator';
 export { DateSeparator } from './DateSeparator';
+export { ChatHeader } from './ChatHeader';

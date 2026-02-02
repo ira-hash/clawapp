@@ -17,13 +17,11 @@ import {
   StyleSheet,
   SafeAreaView,
   Text,
-  TouchableOpacity,
   ActivityIndicator,
   Platform,
   StatusBar,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
@@ -235,23 +233,14 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   );
 
   const renderHeader = () => (
-    <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-      <TouchableOpacity onPress={onBack} style={styles.backButton}>
-        <Ionicons name="chevron-back" size={28} color={theme.primary} />
-      </TouchableOpacity>
-      <View style={styles.headerCenter}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>
-          {roomEmoji} {roomName}
-        </Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, isConnected ? styles.connected : styles.disconnected]} />
-          <Text style={[styles.statusText, { color: theme.textSecondary }]}>
-            {isConnected ? 'Connected' : 'Reconnecting...'}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.headerRight} />
-    </View>
+    <ChatHeader
+      title={roomName}
+      emoji={roomEmoji}
+      isConnected={isConnected}
+      isTyping={isTyping}
+      isThinking={isThinking}
+      onBack={onBack}
+    />
   );
 
   const renderTypingIndicator = () => (
@@ -335,49 +324,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    paddingTop: Platform.OS === 'ios' ? 12 : (StatusBar.currentHeight || 0) + 12,
-  },
-  backButton: {
-    padding: 4,
-    width: 44,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  connected: {
-    backgroundColor: '#34C759',
-  },
-  disconnected: {
-    backgroundColor: '#FF3B30',
-  },
-  statusText: {
-    fontSize: 12,
-  },
-  headerRight: {
-    width: 44,
   },
   reconnectBanner: {
     flexDirection: 'row',
