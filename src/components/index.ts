@@ -16,6 +16,8 @@ export { Divider } from './Divider';
 export { ListItem } from './ListItem';
 export { BottomSheet } from './BottomSheet';
 export { ActionSheet, type ActionSheetOption } from './ActionSheet';
+export { Chip } from './Chip';
+export { ProgressBar } from './ProgressBar';
 
 // Re-export chat components
 export * from './chat';
