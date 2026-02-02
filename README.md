@@ -2,19 +2,45 @@
 
 **The native Clawdbot mobile app for iOS & Android**
 
-Claw is a Clawdbot-native messaging app that provides the best experience for communicating with your AI agent. Unlike generic messengers (Telegram, Slack, Discord), Claw is built from the ground up for AI-first interactions.
+Claw is a Clawdbot-native messaging app designed with **Telegram-style UX** for the best AI agent communication experience. Built from the ground up for AI-first interactions.
 
 ## ✨ Features
 
-- **QR Code / Auth Code Pairing** - Connect to your Clawdbot gateway instantly
-- **Canvas Rendering** - Native display of rich content, charts, and interactive elements
-- **Code Blocks** - Syntax-highlighted code with copy functionality
-- **File Preview** - Inline preview of images, PDFs, and documents
-- **TTS Playback** - Built-in voice message support
-- **Real-time Streaming** - See AI responses as they're generated
-- **Thinking Indicator** - Visual feedback during AI reasoning
-- **Inline Buttons** - Native button interactions
-- **Node Integration** - Camera, location, notifications
+### 💬 Chat Experience
+- **Swipe to Reply** - Telegram-style swipe gestures
+- **Swipe to Delete** - Quick message removal
+- **Message Search** - Find messages instantly
+- **Typing Indicators** - Animated dot bounce
+- **Read Status** - Message delivery & read receipts
+- **Time Stamps** - Per-message timestamps
+- **Date Separators** - Today/Yesterday/Date grouping
+
+### 🎨 Design
+- **OpenClaw Design System** - Signature red (#ff5c5c)
+- **Dark & Light Mode** - System preference detection
+- **Smooth Animations** - Spring physics throughout
+- **Haptic Feedback** - Tactile response
+
+### 🔐 Security
+- **Face ID / Touch ID** - Biometric app lock
+- **Secure Storage** - Encrypted token storage
+- **Offline Queue** - Messages saved when offline
+
+### 🤖 AI Features
+- **Multi-Agent Support** - Connect multiple Clawdbot instances
+- **Multi-Room Chats** - Organize conversations by topic
+- **Canvas Rendering** - Rich content display
+- **Code Blocks** - Syntax highlighting + copy
+- **Inline Buttons** - Interactive responses
+- **Slash Commands** - Quick command access
+- **Thinking Indicator** - Visual AI reasoning feedback
+- **Real-time Streaming** - Watch responses generate
+
+### 📱 Platform Features
+- **Push Notifications** - FCM/APNs support
+- **QR Code Pairing** - Instant connection
+- **Pull to Refresh** - Update message lists
+- **Network Status** - Connection indicator
 
 ## 🚀 Quick Start
 
@@ -22,55 +48,87 @@ Claw is a Clawdbot-native messaging app that provides the best experience for co
 # Install dependencies
 npm install
 
+# Start development server
+npx expo start
+
 # Run on iOS simulator
 npm run ios
 
 # Run on Android emulator
 npm run android
-
-# Run in web browser
-npm run web
 ```
 
-## 📱 Pairing Flow
+## 📱 Pairing
 
 1. Open Claw app
-2. Scan QR code from Clawdbot dashboard, OR
-3. Enter 6-digit auth code manually
-4. Start chatting!
+2. Tap **"Add Agent"**
+3. **Scan QR** from Clawdbot dashboard, OR
+4. **Manual entry**: Gateway URL + Token
+5. Start chatting! 🎉
 
 ## 🛠️ Tech Stack
 
-- **React Native** with Expo
-- **TypeScript** for type safety
-- **WebSocket** for real-time communication
-- **Expo Router** for navigation
+- **React Native** + Expo SDK 52
+- **TypeScript** - Full type safety
+- **Gesture Handler** - Swipe gestures
+- **Expo Local Auth** - Biometrics
+- **Expo Haptics** - Tactile feedback
+- **AsyncStorage** - Local persistence
 
-## 📁 Project Structure
+## 📁 Structure
 
 ```
 src/
-├── app/                 # Expo Router screens
-│   ├── (tabs)/         # Main tab navigation
-│   ├── auth/           # Pairing flow
-│   └── chat/           # Chat screens
-├── components/         # Reusable UI components
-│   ├── chat/           # Chat-specific components
-│   ├── canvas/         # Canvas rendering
-│   └── common/         # Shared components
-├── hooks/              # Custom React hooks
-├── services/           # API & WebSocket services
-├── stores/             # State management
-├── types/              # TypeScript types
-└── utils/              # Helper functions
+├── app/                 # Screens
+│   ├── agents/         # Agent list
+│   ├── rooms/          # Room list
+│   ├── chat/           # Chat screen
+│   ├── chats/          # All chats tab
+│   ├── hub/            # Resources & skills
+│   ├── settings/       # App settings
+│   └── auth/           # Pairing flow
+├── components/
+│   ├── chat/           # Chat components
+│   │   ├── MessageBubble
+│   │   ├── ChatInput
+│   │   ├── SwipeableMessage
+│   │   ├── TypingIndicator
+│   │   ├── SearchBar
+│   │   └── ...
+│   └── ...
+├── services/           # API & business logic
+│   ├── gateway.ts      # WebSocket connection
+│   ├── storage.ts      # Local storage
+│   ├── biometrics.ts   # Face ID / Touch ID
+│   └── notifications.ts
+├── contexts/           # React contexts
+├── hooks/              # Custom hooks
+├── theme/              # OpenClaw design tokens
+└── types/              # TypeScript definitions
 ```
 
-## 🔒 Security
+## 📋 Version History
 
-- End-to-end encrypted communication
-- Secure token storage
-- Biometric authentication support
+- **v1.0-beta** - Full Telegram-style UX
+- **v0.9** - Screen UX improvements
+- **v0.8** - Security features
+- **v0.7** - Chat animations
+- **v0.6** - Markdown & slash commands
+- **v0.5** - Tab navigation
+- **v0.4** - Multi-agent support
+- **v0.3** - Multi-room chat
+
+## 🔒 Privacy
+
+- All data stored locally on device
+- No analytics or tracking
+- Gateway connection is direct (no middle server)
+- Biometric data never leaves device
 
 ## 📜 License
 
-MIT
+MIT © Clawdbot
+
+---
+
+Made with 🦞 for the Clawdbot community
