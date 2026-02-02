@@ -4,6 +4,7 @@
 
 export * from './colors';
 export * from './openclaw';
+export * from './animations';
 
 // Spacing (8pt grid system)
 export const spacing = {
