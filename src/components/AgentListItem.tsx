@@ -1,7 +1,11 @@
 /**
  * Agent List Item
  * 
- * Telegram-style chat list item showing agent info and last message
+ * OpenClaw Design System 스타일 리스트 아이템
+ * Features:
+ * - Clean minimal design
+ * - Online status indicator
+ * - Unread badge with accent color
  */
 
 import React from 'react';
@@ -14,7 +18,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Agent } from '../types';
-import { colors, spacing, fontSize, borderRadius } from '../theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { spacing, fontSize, borderRadius } from '../theme';
 
 interface AgentListItemProps {
   agent: Agent;
@@ -23,6 +28,8 @@ interface AgentListItemProps {
 }
 
 export function AgentListItem({ agent, onPress, onLongPress }: AgentListItemProps) {
+  const { theme, isDark } = useTheme();
+
   const formatTime = (timestamp?: number) => {
     if (!timestamp) return '';
     
@@ -48,7 +55,7 @@ export function AgentListItem({ agent, onPress, onLongPress }: AgentListItemProp
     }
     
     return (
-      <View style={[styles.avatar, styles.avatarPlaceholder]}>
+      <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.surfaceElevated }]}>
         <Text style={styles.avatarEmoji}>{agent.emoji || '🤖'}</Text>
       </View>
     );
@@ -58,12 +65,15 @@ export function AgentListItem({ agent, onPress, onLongPress }: AgentListItemProp
     const status = agent.lastMessage?.status;
     if (!status || agent.lastMessage?.role !== 'user') return null;
     
+    const readColor = theme.secondary || '#14b8a6';
+    const sentColor = theme.textTertiary;
+    
     if (status === 'read') {
-      return <Ionicons name="checkmark-done" size={16} color={colors.read} />;
+      return <Ionicons name="checkmark-done" size={16} color={readColor} />;
     } else if (status === 'delivered' || status === 'sent') {
-      return <Ionicons name="checkmark-done" size={16} color={colors.sent} />;
+      return <Ionicons name="checkmark-done" size={16} color={sentColor} />;
     } else if (status === 'sending') {
-      return <Ionicons name="time-outline" size={14} color={colors.sent} />;
+      return <Ionicons name="time-outline" size={14} color={sentColor} />;
     }
     return null;
   };
@@ -72,30 +82,39 @@ export function AgentListItem({ agent, onPress, onLongPress }: AgentListItemProp
     <TouchableHighlight
       onPress={onPress}
       onLongPress={onLongPress}
-      underlayColor={colors.gray100}
+      underlayColor={theme.surfaceElevated}
     >
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.avatarContainer}>
           {renderAvatar()}
-          {agent.isOnline && <View style={styles.onlineIndicator} />}
+          {agent.isOnline && (
+            <View style={[styles.onlineIndicator, { 
+              backgroundColor: theme.success,
+              borderColor: theme.background,
+            }]} />
+          )}
         </View>
         
         <View style={styles.content}>
           <View style={styles.topRow}>
-            <Text style={styles.name} numberOfLines={1}>{agent.name}</Text>
-            <Text style={styles.time}>{formatTime(agent.lastMessage?.timestamp)}</Text>
+            <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
+              {agent.name}
+            </Text>
+            <Text style={[styles.time, { color: theme.textSecondary }]}>
+              {formatTime(agent.lastMessage?.timestamp)}
+            </Text>
           </View>
           
           <View style={styles.bottomRow}>
             <View style={styles.messagePreview}>
               {renderStatus()}
-              <Text style={styles.preview} numberOfLines={1}>
+              <Text style={[styles.preview, { color: theme.textSecondary }]} numberOfLines={1}>
                 {agent.lastMessage?.content || 'No messages yet'}
               </Text>
             </View>
             
             {agent.unreadCount > 0 && (
-              <View style={styles.badge}>
+              <View style={[styles.badge, { backgroundColor: theme.primary }]}>
                 <Text style={styles.badgeText}>
                   {agent.unreadCount > 99 ? '99+' : agent.unreadCount}
                 </Text>
@@ -112,36 +131,32 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    backgroundColor: colors.light.background,
+    paddingVertical: spacing.sm + 4,
   },
   avatarContainer: {
     position: 'relative',
     marginRight: spacing.md,
   },
   avatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   avatarPlaceholder: {
-    backgroundColor: colors.gray200,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarEmoji: {
-    fontSize: 28,
+    fontSize: 26,
   },
   onlineIndicator: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
+    bottom: 1,
+    right: 1,
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: colors.online,
-    borderWidth: 2,
-    borderColor: colors.light.background,
+    borderWidth: 2.5,
   },
   content: {
     flex: 1,
@@ -156,13 +171,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: fontSize.lg,
     fontWeight: '600',
-    color: colors.light.text,
     flex: 1,
     marginRight: spacing.sm,
+    letterSpacing: -0.3,
   },
   time: {
     fontSize: fontSize.sm,
-    color: colors.light.textSecondary,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -178,11 +192,9 @@ const styles = StyleSheet.create({
   },
   preview: {
     fontSize: fontSize.md,
-    color: colors.light.textSecondary,
     flex: 1,
   },
   badge: {
-    backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
     minWidth: 22,
     height: 22,
@@ -192,7 +204,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#FFFFFF',
-    fontSize: fontSize.xs,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

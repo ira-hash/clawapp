@@ -23,7 +23,8 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MessageBubble, ChatInput } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview } from '../../components/chat';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
 
@@ -46,6 +47,7 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   // Load message history on mount
@@ -152,24 +154,46 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   }, []);
 
   const handleSend = (text: string, image?: string) => {
+    // Build message content with reply context if present
+    let content = text;
+    let metadata: Message['metadata'] = image ? { media: image } : undefined;
+    
+    if (replyTo) {
+      metadata = {
+        ...metadata,
+        replyTo: {
+          id: replyTo.id,
+          content: replyTo.content.slice(0, 100),
+          role: replyTo.role,
+        },
+      };
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: text,
+      content,
       timestamp: Date.now(),
       status: 'sending',
-      metadata: image ? { media: image } : undefined,
+      metadata,
     };
     setMessages(prev => [...prev, userMessage]);
 
     // Send to gateway with room ID
     gateway.sendMessage(text, roomId);
 
+    // Clear reply state
+    setReplyTo(null);
+
     // Update status
     setMessages(prev => 
       prev.map(m => m.id === userMessage.id ? { ...m, status: 'sent' } : m)
     );
   };
+
+  const handleReply = useCallback((message: Message) => {
+    setReplyTo(message);
+  }, []);
 
   const handleButtonPress = (callbackData: string) => {
     gateway.sendButtonCallback(callbackData, roomId);
@@ -188,7 +212,9 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   }, [messages]);
 
   const renderMessage = ({ item }: { item: Message }) => (
-    <MessageBubble message={item} onButtonPress={handleButtonPress} />
+    <SwipeableMessage message={item} onReply={handleReply}>
+      <MessageBubble message={item} onButtonPress={handleButtonPress} />
+    </SwipeableMessage>
   );
 
   const renderHeader = () => (
@@ -253,36 +279,41 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      {renderHeader()}
-      
-      {!isConnected && (
-        <View style={[styles.reconnectBanner, { backgroundColor: theme.warning }]}>
-          <ActivityIndicator size="small" color="#FFF" />
-          <Text style={styles.reconnectText}>Reconnecting...</Text>
-        </View>
-      )}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        {renderHeader()}
+        
+        {!isConnected && (
+          <View style={[styles.reconnectBanner, { backgroundColor: theme.warning }]}>
+            <ActivityIndicator size="small" color="#FFF" />
+            <Text style={styles.reconnectText}>Reconnecting...</Text>
+          </View>
+        )}
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={item => item.id}
-        contentContainerStyle={[
-          styles.messageList,
-          messages.length === 0 && styles.emptyMessageList,
-          { backgroundColor: theme.background }
-        ]}
-        ListEmptyComponent={renderEmptyState}
-        ListFooterComponent={renderTypingIndicator}
-        onContentSizeChange={scrollToBottom}
-        keyboardDismissMode="interactive"
-        keyboardShouldPersistTaps="handled"
-      />
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={item => item.id}
+          contentContainerStyle={[
+            styles.messageList,
+            messages.length === 0 && styles.emptyMessageList,
+            { backgroundColor: theme.background }
+          ]}
+          ListEmptyComponent={renderEmptyState}
+          ListFooterComponent={renderTypingIndicator}
+          onContentSizeChange={scrollToBottom}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+        />
 
-      <ChatInput onSend={handleSend} disabled={!isConnected} />
-    </SafeAreaView>
+        {replyTo && (
+          <ReplyPreview message={replyTo} onCancel={() => setReplyTo(null)} />
+        )}
+        <ChatInput onSend={handleSend} disabled={!isConnected} />
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

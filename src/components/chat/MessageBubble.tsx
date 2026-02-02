@@ -142,6 +142,30 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
     return /```|^#{1,6}\s|^\s*[-*]\s|^\s*\d+\.\s|`[^`]+`|\*\*|\*[^*]+\*|__|_[^_]+_|~~|\[.+\]\(.+\)|^>/m.test(text);
   };
 
+  const renderReplyContext = () => {
+    const replyTo = message.metadata?.replyTo;
+    if (!replyTo) return null;
+
+    const senderName = replyTo.role === 'user' ? 'You' : 'Assistant';
+    
+    return (
+      <View style={[styles.replyContext, { 
+        backgroundColor: isUser ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)',
+        borderLeftColor: theme.primary,
+      }]}>
+        <Text style={[styles.replySender, { color: isUser ? '#fff' : theme.primary }]}>
+          {senderName}
+        </Text>
+        <Text 
+          style={[styles.replyText, { color: isUser ? 'rgba(255,255,255,0.8)' : theme.textSecondary }]}
+          numberOfLines={1}
+        >
+          {replyTo.content}
+        </Text>
+      </View>
+    );
+  };
+
   const renderContent = () => {
     const content = message.content;
     
@@ -175,6 +199,7 @@ export function MessageBubble({ message, onButtonPress }: MessageBubbleProps) {
             : [styles.assistantBubble, { backgroundColor: theme.messageBubbleAssistant }],
         ]}
       >
+        {renderReplyContext()}
         {renderImage()}
         {renderContent()}
         {renderButtons()}
@@ -246,6 +271,21 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginBottom: 8,
+  },
+  replyContext: {
+    borderLeftWidth: 3,
+    paddingLeft: 8,
+    paddingVertical: 4,
+    marginBottom: 8,
+    borderRadius: 4,
+  },
+  replySender: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  replyText: {
+    fontSize: 13,
   },
   imageViewerContainer: {
     flex: 1,

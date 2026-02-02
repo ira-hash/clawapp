@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray200,
   },
   title: {
-    fontSize: fontSize.xxl,
+    fontSize: fontSize['2xl'],
     fontWeight: 'bold',
     color: colors.light.text,
   },

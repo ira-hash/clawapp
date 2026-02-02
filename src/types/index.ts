@@ -23,6 +23,11 @@ export interface MessageMetadata {
   canvas?: CanvasContent;
   media?: string; // Image URI or base64
   codeBlocks?: CodeBlock[];
+  replyTo?: {
+    id: string;
+    content: string;
+    role: 'user' | 'assistant' | 'system';
+  };
 }
 
 export interface InlineButton {

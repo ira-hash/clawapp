@@ -6,11 +6,11 @@
 
 import { useColorScheme } from 'react-native';
 import { useMemo } from 'react';
-import { colors, ThemeColors, getTheme } from '../theme';
+import { Theme, darkTheme, lightTheme } from '../theme';
 import { Settings } from '../types';
 
 export function useTheme(settings: Settings): {
-  theme: ThemeColors;
+  theme: Theme;
   isDark: boolean;
 } {
   const systemColorScheme = useColorScheme();
@@ -22,7 +22,7 @@ export function useTheme(settings: Settings): {
     return settings.theme === 'dark';
   }, [settings.theme, systemColorScheme]);
 
-  const theme = useMemo(() => getTheme(isDark), [isDark]);
+  const theme = useMemo(() => isDark ? darkTheme : lightTheme, [isDark]);
 
   return { theme, isDark };
 }

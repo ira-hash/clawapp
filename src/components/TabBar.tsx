@@ -1,7 +1,11 @@
 /**
  * Bottom Tab Bar Component
  * 
- * 메신저 스타일 하단 네비게이션
+ * OpenClaw Design System 스타일 하단 네비게이션
+ * Features:
+ * - Signature red accent for active state
+ * - Clean minimal design
+ * - Badge support
  */
 
 import React from 'react';
@@ -13,6 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
 
 export type TabName = 'agents' | 'chats' | 'hub' | 'settings';
@@ -35,7 +40,7 @@ const TABS: TabItem[] = [
   { name: 'agents', label: 'Agents', icon: 'people-outline', iconActive: 'people' },
   { name: 'chats', label: 'Chats', icon: 'chatbubbles-outline', iconActive: 'chatbubbles' },
   { name: 'hub', label: 'Hub', icon: 'grid-outline', iconActive: 'grid' },
-  { name: 'settings', label: 'Settings', icon: 'settings-outline', iconActive: 'settings' },
+  { name: 'settings', label: 'Settings', icon: 'cog-outline', iconActive: 'cog' },
 ];
 
 export function TabBar({ activeTab, onTabPress, agentBadge, chatBadge }: TabBarProps) {
@@ -47,27 +52,36 @@ export function TabBar({ activeTab, onTabPress, agentBadge, chatBadge }: TabBarP
     return 0;
   };
 
+  const handlePress = async (tab: TabName) => {
+    if (tab !== activeTab) {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onTabPress(tab);
+  };
+
   return (
     <View style={[styles.container, { 
-      backgroundColor: theme.background,
-      borderTopColor: theme.border 
+      backgroundColor: theme.tabBar || theme.background,
+      borderTopColor: theme.tabBarBorder || theme.border,
     }]}>
       {TABS.map((tab) => {
         const isActive = activeTab === tab.name;
         const badge = getBadge(tab.name);
+        const activeColor = theme.tabActive || theme.primary;
+        const inactiveColor = theme.tabInactive || theme.textSecondary;
         
         return (
           <TouchableOpacity
             key={tab.name}
             style={styles.tab}
-            onPress={() => onTabPress(tab.name)}
+            onPress={() => handlePress(tab.name)}
             activeOpacity={0.7}
           >
             <View style={styles.iconContainer}>
               <Ionicons
                 name={isActive ? tab.iconActive : tab.icon}
                 size={24}
-                color={isActive ? theme.primary : theme.textSecondary}
+                color={isActive ? activeColor : inactiveColor}
               />
               {badge > 0 && (
                 <View style={[styles.badge, { backgroundColor: theme.error }]}>
@@ -79,7 +93,10 @@ export function TabBar({ activeTab, onTabPress, agentBadge, chatBadge }: TabBarP
             </View>
             <Text style={[
               styles.label,
-              { color: isActive ? theme.primary : theme.textSecondary }
+              { 
+                color: isActive ? activeColor : inactiveColor,
+                fontWeight: isActive ? '600' : '500',
+              }
             ]}>
               {tab.label}
             </Text>
@@ -94,8 +111,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+    paddingTop: 10,
   },
   tab: {
     flex: 1,
@@ -105,26 +122,26 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     position: 'relative',
+    marginBottom: 2,
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -8,
+    top: -6,
+    right: -10,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
   },
   badgeText: {
     color: '#FFF',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
   },
   label: {
     fontSize: 11,
-    marginTop: 2,
-    fontWeight: '500',
+    letterSpacing: -0.2,
   },
 });

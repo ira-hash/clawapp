@@ -61,7 +61,7 @@ class GatewayService {
 
   private async generateDeviceId() {
     try {
-      const installId = await Application.getInstallationIdAsync();
+      const installId = Application.applicationId || Date.now().toString();
       this.deviceId = `claw-${Platform.OS}-${installId?.slice(0, 8) || Date.now()}`;
     } catch {
       this.deviceId = `claw-${Platform.OS}-${Date.now()}`;
