@@ -23,7 +23,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
@@ -48,7 +48,10 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const [isThinking, setIsThinking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const contentHeight = useRef(0);
+  const scrollOffset = useRef(0);
 
   // Load message history on mount
   useEffect(() => {
@@ -195,6 +198,20 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
     setReplyTo(message);
   }, []);
 
+  const handleScroll = useCallback((event: any) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    scrollOffset.current = contentOffset.y;
+    contentHeight.current = contentSize.height;
+    
+    // Show button if scrolled up more than 200px from bottom
+    const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    setShowScrollButton(distanceFromBottom > 200);
+  }, []);
+
+  const handleScrollToBottom = useCallback(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
   const handleButtonPress = (callbackData: string) => {
     gateway.sendButtonCallback(callbackData, roomId);
   };
@@ -291,22 +308,31 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
           </View>
         )}
 
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={item => item.id}
-          contentContainerStyle={[
-            styles.messageList,
-            messages.length === 0 && styles.emptyMessageList,
-            { backgroundColor: theme.background }
-          ]}
-          ListEmptyComponent={renderEmptyState}
-          ListFooterComponent={renderTypingIndicator}
-          onContentSizeChange={scrollToBottom}
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
-        />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessage}
+            keyExtractor={item => item.id}
+            contentContainerStyle={[
+              styles.messageList,
+              messages.length === 0 && styles.emptyMessageList,
+              { backgroundColor: theme.background }
+            ]}
+            ListEmptyComponent={renderEmptyState}
+            ListFooterComponent={renderTypingIndicator}
+            onContentSizeChange={scrollToBottom}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+          />
+          
+          <ScrollToBottomButton
+            visible={showScrollButton}
+            onPress={handleScrollToBottom}
+          />
+        </View>
 
         {replyTo && (
           <ReplyPreview message={replyTo} onCancel={() => setReplyTo(null)} />
