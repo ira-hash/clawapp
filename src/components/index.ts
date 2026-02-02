@@ -18,6 +18,7 @@ export { BottomSheet } from './BottomSheet';
 export { ActionSheet, type ActionSheetOption } from './ActionSheet';
 export { Chip } from './Chip';
 export { ProgressBar } from './ProgressBar';
+export { Skeleton, SkeletonText, SkeletonAvatar, SkeletonListItem, SkeletonCard } from './Skeleton';
 
 // Re-export chat components
 export * from './chat';
