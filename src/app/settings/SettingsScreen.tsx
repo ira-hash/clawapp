@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ThemeMode } from '../../services/storage';
 import { notifications } from '../../services/notifications';
+import { biometrics, getBiometricTypeName } from '../../services/biometrics';
 import { spacing, fontSize, borderRadius } from '../../theme';
 
 interface SettingsScreenProps {
@@ -31,10 +32,27 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
   const { theme, isDark, themeMode, setThemeMode } = useTheme();
   const [haptics, setHaptics] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricType, setBiometricType] = useState('Biometrics');
 
-  // Load notification setting on mount
+  // Load settings on mount
   useEffect(() => {
     notifications.isEnabled().then(setNotificationsEnabled);
+    
+    // Check biometrics
+    const loadBiometrics = async () => {
+      await biometrics.init();
+      const supported = await biometrics.isSupported();
+      setBiometricSupported(supported);
+      setBiometricEnabled(biometrics.getEnabled());
+      
+      if (supported) {
+        const type = await biometrics.getBiometricType();
+        setBiometricType(getBiometricTypeName(type));
+      }
+    };
+    loadBiometrics();
   }, []);
 
   const handleThemeChange = (mode: ThemeMode) => {
@@ -57,6 +75,20 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
           ]
         );
       }
+    }
+  };
+
+  const handleBiometricToggle = async (enabled: boolean) => {
+    if (enabled) {
+      // Authenticate first before enabling
+      const success = await biometrics.authenticate(`Use ${biometricType} to enable app lock`);
+      if (success) {
+        setBiometricEnabled(true);
+        await biometrics.setEnabled(true);
+      }
+    } else {
+      setBiometricEnabled(false);
+      await biometrics.setEnabled(false);
     }
   };
 
@@ -186,6 +218,21 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
           )}
         </View>
 
+        {/* Security */}
+        {biometricSupported && (
+          <>
+            {renderSectionHeader('SECURITY')}
+            <View style={styles.settingsGroup}>
+              {renderToggle(
+                biometricType,
+                'Require authentication to open app',
+                biometricEnabled,
+                handleBiometricToggle
+              )}
+            </View>
+          </>
+        )}
+
         {/* About */}
         {renderSectionHeader('ABOUT')}
         <View style={styles.settingsGroup}>
@@ -203,7 +250,7 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Version */}
         <View style={styles.versionContainer}>
           <Text style={[styles.versionText, { color: theme.textTertiary }]}>
-            Claw v0.6.0
+            Claw v0.7.0
           </Text>
           <Text style={[styles.versionText, { color: theme.textTertiary }]}>
             Made with 🦞 for Clawdbot
