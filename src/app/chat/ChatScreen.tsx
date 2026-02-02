@@ -20,6 +20,7 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
+  RefreshControl,
 } from 'react-native';
 import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -45,6 +46,7 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const flatListRef = useRef<FlatList>(null);
@@ -210,6 +212,14 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
     flatListRef.current?.scrollToEnd({ animated: true });
   }, []);
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    // Reload messages from storage
+    const savedMessages = await loadMessages(roomId);
+    setMessages(savedMessages);
+    setIsRefreshing(false);
+  }, [roomId]);
+
   const handleButtonPress = (callbackData: string) => {
     gateway.sendButtonCallback(callbackData, roomId);
   };
@@ -299,6 +309,14 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
             scrollEventThrottle={16}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={theme.primary}
+                colors={[theme.primary]}
+              />
+            }
           />
           
           <ScrollToBottomButton
