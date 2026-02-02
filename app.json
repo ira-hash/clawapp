@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1A1A1A"
+      "backgroundColor": "#12141a"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +23,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1A1A1A"
+        "backgroundColor": "#12141a"
       },
       "package": "com.clawdbot.claw",
       "permissions": [
