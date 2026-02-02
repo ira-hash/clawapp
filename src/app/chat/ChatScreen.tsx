@@ -23,7 +23,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
@@ -254,25 +254,9 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
     </View>
   );
 
-  const renderTypingIndicator = () => {
-    if (!isTyping && !isThinking) return null;
-
-    return (
-      <View style={styles.typingContainer}>
-        <View style={[styles.typingBubble, { backgroundColor: theme.messageBubbleAssistant }]}>
-          {isThinking ? (
-            <Text style={[styles.thinkingText, { color: theme.textSecondary }]}>🤔 Thinking...</Text>
-          ) : (
-            <View style={styles.typingDots}>
-              <View style={[styles.dot, { backgroundColor: theme.textSecondary }]} />
-              <View style={[styles.dot, { backgroundColor: theme.textSecondary, opacity: 0.7 }]} />
-              <View style={[styles.dot, { backgroundColor: theme.textSecondary, opacity: 0.4 }]} />
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  };
+  const renderTypingIndicator = () => (
+    <TypingIndicator isTyping={isTyping} isThinking={isThinking} />
+  );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -432,28 +416,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  typingContainer: {
-    marginVertical: 4,
-    marginHorizontal: 12,
-    alignItems: 'flex-start',
-  },
-  typingBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderBottomLeftRadius: 4,
-  },
-  thinkingText: {
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  typingDots: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-});
+  });
