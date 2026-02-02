@@ -1,10 +1,15 @@
 /**
  * Chats Screen
  * 
- * 모든 에이전트의 최근 대화방 목록 (카카오톡 채팅 탭처럼)
+ * 텔레그램 스타일 모든 채팅 목록
+ * Features:
+ * - 에이전트별 최근 대화방 통합 표시
+ * - 시간순 정렬
+ * - 검색 기능
+ * - 읽지 않은 메시지 배지
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,12 +18,16 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
+  TextInput,
+  Animated,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ChatRoom } from '../../types';
 import { StoredAgent, loadAgents, loadRooms } from '../../services/storage';
-import { spacing, fontSize, borderRadius } from '../../theme';
+import { spacing, fontSize, borderRadius, shadows } from '../../theme';
 
 interface ChatWithAgent extends ChatRoom {
   agent: StoredAgent;
@@ -31,7 +40,12 @@ interface ChatsScreenProps {
 export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
   const { theme, isDark } = useTheme();
   const [chats, setChats] = useState<ChatWithAgent[]>([]);
+  const [filteredChats, setFilteredChats] = useState<ChatWithAgent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const searchInputRef = useRef<TextInput>(null);
 
   // Load all chats from all agents
   const loadAllChats = useCallback(async () => {
@@ -50,6 +64,7 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
       allChats.sort((a, b) => (b.lastMessageAt || b.createdAt) - (a.lastMessageAt || a.createdAt));
       
       setChats(allChats);
+      setFilteredChats(allChats);
     } catch (e) {
       console.error('[ChatsScreen] Failed to load chats:', e);
     } finally {
@@ -60,6 +75,31 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
   useEffect(() => {
     loadAllChats();
   }, [loadAllChats]);
+
+  // Filter chats when search query changes
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredChats(chats);
+    } else {
+      const query = searchQuery.toLowerCase();
+      setFilteredChats(
+        chats.filter(c => 
+          c.name.toLowerCase().includes(query) ||
+          c.agent.name.toLowerCase().includes(query) ||
+          c.lastMessage?.toLowerCase().includes(query)
+        )
+      );
+    }
+  }, [searchQuery, chats]);
+
+  const toggleSearch = () => {
+    setShowSearch(!showSearch);
+    if (!showSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    } else {
+      setSearchQuery('');
+    }
+  };
 
   const formatTime = (timestamp?: number) => {
     if (!timestamp) return '';
@@ -79,37 +119,56 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
     }
   };
 
+  const handleChatPress = (chat: ChatWithAgent) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSelectChat(chat.agent, chat);
+  };
+
   const renderChat = ({ item }: { item: ChatWithAgent }) => (
     <TouchableOpacity
       style={[styles.chatItem, { backgroundColor: theme.background }]}
-      onPress={() => onSelectChat(item.agent, item)}
+      onPress={() => handleChatPress(item)}
+      activeOpacity={0.7}
     >
-      <View style={[styles.avatarContainer, { backgroundColor: theme.primary + '20' }]}>
+      <View style={[styles.avatarContainer, { backgroundColor: theme.primary + '15' }]}>
         <Text style={styles.avatarEmoji}>{item.agent.emoji}</Text>
-        <View style={[styles.roomBadge, { backgroundColor: theme.surfaceElevated }]}>
-          <Text style={styles.roomEmoji}>{item.emoji}</Text>
-        </View>
+        {item.emoji !== '💬' && (
+          <View style={[styles.roomBadge, { backgroundColor: theme.surfaceElevated }]}>
+            <Text style={styles.roomEmoji}>{item.emoji}</Text>
+          </View>
+        )}
       </View>
       
       <View style={styles.chatInfo}>
         <View style={styles.chatHeader}>
           <Text style={[styles.chatTitle, { color: theme.text }]} numberOfLines={1}>
-            {item.agent.name} • {item.name}
+            {item.name === 'General' ? item.agent.name : `${item.agent.name} • ${item.name}`}
           </Text>
-          <Text style={[styles.chatTime, { color: theme.textSecondary }]}>
+          <Text style={[
+            styles.chatTime, 
+            { color: item.unreadCount > 0 ? theme.primary : theme.textTertiary }
+          ]}>
             {formatTime(item.lastMessageAt)}
           </Text>
         </View>
         <View style={styles.chatPreview}>
           <Text 
-            style={[styles.previewText, { color: theme.textSecondary }]}
+            style={[
+              styles.previewText, 
+              { 
+                color: item.unreadCount > 0 ? theme.text : theme.textSecondary,
+                fontWeight: item.unreadCount > 0 ? '500' : '400',
+              }
+            ]}
             numberOfLines={1}
           >
             {item.lastMessage || 'No messages yet'}
           </Text>
           {item.unreadCount > 0 && (
             <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
-              <Text style={styles.unreadText}>{item.unreadCount}</Text>
+              <Text style={styles.unreadText}>
+                {item.unreadCount > 99 ? '99+' : item.unreadCount}
+              </Text>
             </View>
           )}
         </View>
@@ -117,15 +176,50 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
     </TouchableOpacity>
   );
 
+  const renderSearchBar = () => {
+    if (!showSearch) return null;
+    
+    return (
+      <View style={[styles.searchContainer, { backgroundColor: theme.background }]}>
+        <View style={[styles.searchInputContainer, { backgroundColor: theme.surface }]}>
+          <Ionicons name="search" size={18} color={theme.textSecondary} />
+          <TextInput
+            ref={searchInputRef}
+            style={[styles.searchInput, { color: theme.text }]}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search chats..."
+            placeholderTextColor={theme.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyEmoji}>💬</Text>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No Chats Yet</Text>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        {searchQuery ? 'No Results' : 'No Chats Yet'}
+      </Text>
       <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-        Add an agent and start chatting!
+        {searchQuery 
+          ? `No chats found for "${searchQuery}"`
+          : 'Add an agent and start chatting!'
+        }
       </Text>
     </View>
   );
+
+  // Calculate total unread
+  const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
@@ -133,23 +227,44 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>💬 Chats</Text>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>💬 Chats</Text>
+          {totalUnread > 0 && (
+            <View style={[styles.totalBadge, { backgroundColor: theme.primary }]}>
+              <Text style={styles.totalBadgeText}>{totalUnread}</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity onPress={toggleSearch} style={styles.headerButton}>
+          <Ionicons 
+            name={showSearch ? "close" : "search"} 
+            size={22} 
+            color={theme.textSecondary} 
+          />
+        </TouchableOpacity>
       </View>
 
+      {renderSearchBar()}
+
       <FlatList
-        data={chats}
+        data={filteredChats}
         renderItem={renderChat}
         keyExtractor={item => `${item.agent.id}-${item.id}`}
         contentContainerStyle={[
           styles.listContent,
-          chats.length === 0 && styles.emptyListContent
+          filteredChats.length === 0 && styles.emptyListContent
         ]}
         ListEmptyComponent={!isLoading ? renderEmptyState : null}
         ItemSeparatorComponent={() => (
           <View style={[styles.separator, { backgroundColor: theme.border }]} />
         )}
-        onRefresh={loadAllChats}
-        refreshing={isLoading}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={loadAllChats}
+            tintColor={theme.primary}
+          />
+        }
       />
     </View>
   );
@@ -160,14 +275,56 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     paddingTop: Platform.OS === 'ios' ? 60 : (StatusBar.currentHeight || 0) + spacing.md,
     borderBottomWidth: 1,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
+    letterSpacing: -0.5,
+  },
+  totalBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  totalBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  headerButton: {
+    padding: 8,
+  },
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: fontSize.md,
+    paddingVertical: 4,
   },
   listContent: {
     flexGrow: 1,
@@ -183,28 +340,29 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   avatarContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   avatarEmoji: {
-    fontSize: 28,
+    fontSize: 26,
   },
   roomBadge: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.sm,
   },
   roomEmoji: {
-    fontSize: 12,
+    fontSize: 11,
   },
   chatInfo: {
     flex: 1,
@@ -220,6 +378,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     marginRight: spacing.sm,
+    letterSpacing: -0.2,
   },
   chatTime: {
     fontSize: fontSize.xs,
@@ -234,29 +393,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   unreadBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     marginLeft: spacing.sm,
   },
   unreadText: {
     color: '#FFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: 88,
+    marginLeft: 86,
   },
   emptyState: {
     alignItems: 'center',
     padding: spacing.xl,
   },
   emptyEmoji: {
-    fontSize: 64,
+    fontSize: 72,
     marginBottom: spacing.md,
   },
   emptyTitle: {
@@ -267,5 +426,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: fontSize.md,
     textAlign: 'center',
+    lineHeight: 22,
   },
 });
