@@ -22,7 +22,7 @@ export function isValidGatewayUrl(url: string): boolean {
  * 토큰 검증 (빈 값 아닌지)
  */
 export function isValidToken(token: string): boolean {
-  return token && token.trim().length > 0;
+  return Boolean(token && token.trim().length > 0);
 }
 
 /**
@@ -55,5 +55,5 @@ export function isValidEmail(email: string): boolean {
  * 메시지 검증 (빈 메시지 방지)
  */
 export function isValidMessage(message: string): boolean {
-  return message && message.trim().length > 0;
+  return Boolean(message && message.trim().length > 0);
 }
