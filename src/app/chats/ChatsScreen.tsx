@@ -27,6 +27,9 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ChatRoom } from '../../types';
 import { StoredAgent, loadAgents, loadRooms } from '../../services/storage';
+import { loadFolders, getChatsForFolder } from '../../services/FolderService';
+import { ChatFolder } from '../../types/folders';
+import { FolderTabs, FolderEditor } from '../../components';
 import { spacing, fontSize, borderRadius, shadows } from '../../theme';
 
 interface ChatWithAgent extends ChatRoom {
@@ -44,6 +47,9 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [showFolderEditor, setShowFolderEditor] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<ChatFolder | null>(null);
   
   const searchInputRef = useRef<TextInput>(null);
 
@@ -75,6 +81,43 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
   useEffect(() => {
     loadAllChats();
   }, [loadAllChats]);
+
+  // Load chats for selected folder
+  useEffect(() => {
+    if (selectedFolderId) {
+      loadChatsForFolder();
+    }
+  }, [selectedFolderId]);
+
+  const loadChatsForFolder = useCallback(async () => {
+    if (!selectedFolderId) return;
+    
+    try {
+      const folderChats = await getChatsForFolder(selectedFolderId);
+      setChats(folderChats);
+      setFilteredChats(folderChats);
+    } catch (e) {
+      console.error('[ChatsScreen] Failed to load folder chats:', e);
+    }
+  }, [selectedFolderId]);
+
+  const handleFolderSelect = useCallback((folderId: string) => {
+    setSelectedFolderId(folderId);
+  }, []);
+
+  const handleEditFolders = useCallback(() => {
+    setEditingFolder(null);
+    setShowFolderEditor(true);
+  }, []);
+
+  const handleFolderSaved = useCallback(() => {
+    // Reload chats after folder change
+    if (selectedFolderId) {
+      loadChatsForFolder();
+    } else {
+      loadAllChats();
+    }
+  }, [selectedFolderId, loadChatsForFolder, loadAllChats]);
 
   // Filter chats when search query changes
   useEffect(() => {
@@ -244,6 +287,13 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
         </TouchableOpacity>
       </View>
 
+      {/* Folder Tabs */}
+      <FolderTabs
+        selectedFolderId={selectedFolderId}
+        onSelectFolder={handleFolderSelect}
+        onEditFolders={handleEditFolders}
+      />
+
       {renderSearchBar()}
 
       <FlatList
@@ -261,10 +311,18 @@ export function ChatsScreen({ onSelectChat }: ChatsScreenProps) {
         refreshControl={
           <RefreshControl
             refreshing={isLoading}
-            onRefresh={loadAllChats}
+            onRefresh={selectedFolderId ? loadChatsForFolder : loadAllChats}
             tintColor={theme.primary}
           />
         }
+      />
+
+      {/* Folder Editor Modal */}
+      <FolderEditor
+        visible={showFolderEditor}
+        folder={editingFolder}
+        onClose={() => setShowFolderEditor(false)}
+        onSave={handleFolderSaved}
       />
     </View>
   );

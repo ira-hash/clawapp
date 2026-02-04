@@ -22,10 +22,14 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
-import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader, SearchBar, AgentProfileModal } from '../../components/chat';
+import { MessageBubble, ChatInput, SwipeableMessage, ReplyPreview, ScrollToBottomButton, TypingIndicator, ChatHeader, SearchBar, AgentProfileModal, PinnedBanner, TranslateButton, PinButton } from '../../components/chat';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { gateway } from '../../services/gateway';
 import { saveMessages, loadMessages, updateRoom } from '../../services/storage';
+import { loadTranslationSettings } from '../../services/TranslationService';
+import { getPinnedMessagesForRoom } from '../../services/PinnedService';
+import { TranslationSettings, LanguageCode } from '../../types/translation';
+import { PinnedMessage } from '../../types/pinned';
 
 // Helper to truncate preview
 import { useTheme } from '../../contexts/ThemeContext';
@@ -54,16 +58,26 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const [searchResults, setSearchResults] = useState<number[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
   const [showProfile, setShowProfile] = useState(false);
+  const [translationSettings, setTranslationSettings] = useState<TranslationSettings | null>(null);
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const flatListRef = useRef<FlatList>(null);
   const contentHeight = useRef(0);
   const scrollOffset = useRef(0);
 
-  // Load message history on mount
+  // Load message history, translation settings, and pinned messages on mount
   useEffect(() => {
-    loadMessages(roomId).then((savedMessages) => {
+    const loadData = async () => {
+      const [savedMessages, transSettings] = await Promise.all([
+        loadMessages(roomId),
+        loadTranslationSettings(),
+      ]);
       setMessages(savedMessages);
+      setTranslationSettings(transSettings);
+      setPinnedMessages(getPinnedMessagesForRoom(roomId));
       setIsLoading(false);
-    });
+    };
+    
+    loadData();
     
     // Set current room in gateway
     gateway.setCurrentRoom(roomId);
@@ -289,7 +303,30 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
 
   const renderMessage = ({ item }: { item: Message }) => (
     <SwipeableMessage message={item} onReply={handleReply} onDelete={handleDeleteMessage}>
-      <MessageBubble message={item} onButtonPress={handleButtonPress} />
+      <View>
+        <MessageBubble message={item} onButtonPress={handleButtonPress} />
+        {/* Message actions row */}
+        <View style={styles.messageActions}>
+          {/* Translation button for assistant messages */}
+          {item.role === 'assistant' && translationSettings?.enabled && (
+            <TranslateButton
+              messageId={item.id}
+              text={item.content}
+              targetLanguage={translationSettings.targetLanguage as LanguageCode}
+              compact
+            />
+          )}
+          {/* Pin button */}
+          <PinButton
+            messageId={item.id}
+            roomId={roomId}
+            agentId={agentId}
+            content={item.content.slice(0, 200)}
+            onPinChange={refreshPinnedMessages}
+            size={16}
+          />
+        </View>
+      </View>
     </SwipeableMessage>
   );
 
@@ -301,6 +338,19 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
   const handleDeleteMessage = useCallback((message: Message) => {
     setMessages(prev => prev.filter(m => m.id !== message.id));
   }, []);
+
+  // Handle pinned message press - scroll to that message
+  const handlePinnedPress = useCallback((pinned: PinnedMessage) => {
+    const messageIndex = messages.findIndex(m => m.id === pinned.messageId);
+    if (messageIndex !== -1) {
+      flatListRef.current?.scrollToIndex({ index: messageIndex, animated: true });
+    }
+  }, [messages]);
+
+  // Refresh pinned messages
+  const refreshPinnedMessages = useCallback(() => {
+    setPinnedMessages(getPinnedMessagesForRoom(roomId));
+  }, [roomId]);
 
   const renderHeader = () => (
     <ChatHeader
@@ -345,6 +395,12 @@ export function ChatScreen({ agentId, roomId, roomName, roomEmoji, onBack }: Cha
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         {renderHeader()}
+
+        {/* Pinned Messages Banner */}
+        <PinnedBanner
+          roomId={roomId}
+          onPress={handlePinnedPress}
+        />
 
         <SearchBar
           visible={showSearch}
@@ -463,4 +519,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  });
+  messageActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+    gap: 8,
+    opacity: 0.6,
+  },
+});
