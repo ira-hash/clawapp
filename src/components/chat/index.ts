@@ -10,3 +10,6 @@ export { DateSeparator } from './DateSeparator';
 export { ChatHeader } from './ChatHeader';
 export { SearchBar } from './SearchBar';
 export { AgentProfileModal } from './AgentProfileModal';
+export { TranslateButton } from './TranslateButton';
+export { PinnedBanner } from './PinnedBanner';
+export { PinButton } from './PinButton';

@@ -156,3 +156,8 @@ export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 // Button Variants
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+
+// Re-export new types
+export * from './folders';
+export * from './translation';
+export * from './pinned';

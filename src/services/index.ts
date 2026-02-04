@@ -12,3 +12,8 @@ export { notifications } from './notifications';
 export { messageQueue } from './messageQueue';
 export { biometrics } from './biometrics';
 export { haptics } from './haptics';
+
+// New services
+export * from './FolderService';
+export * from './TranslationService';
+export * from './PinnedService';

@@ -22,5 +22,12 @@ export { Skeleton, SkeletonText, SkeletonAvatar, SkeletonListItem, SkeletonCard 
 export { RefreshControl } from './RefreshControl';
 export { KeyboardAvoiding } from './KeyboardAvoiding';
 
+// Folder components
+export { FolderTabs } from './FolderTabs';
+export { FolderEditor } from './FolderEditor';
+
+// Translation components
+export { TranslationSettings } from './TranslationSettings';
+
 // Re-export chat components
 export * from './chat';
