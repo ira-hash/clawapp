@@ -22,6 +22,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { ThemeMode } from '../../services/storage';
 import { notifications } from '../../services/notifications';
 import { biometrics, getBiometricTypeName } from '../../services/biometrics';
+import { TranslationSettings } from '../../components';
 import { spacing, fontSize, borderRadius } from '../../theme';
 
 interface SettingsScreenProps {
@@ -35,6 +36,7 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricType, setBiometricType] = useState('Biometrics');
+  const [showTranslationSettings, setShowTranslationSettings] = useState(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -233,6 +235,12 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
           </>
         )}
 
+        {/* Language & Translation */}
+        {renderSectionHeader('LANGUAGE')}
+        <View style={styles.settingsGroup}>
+          {renderButton('Translation Settings', 'language-outline', () => setShowTranslationSettings(true))}
+        </View>
+
         {/* About */}
         {renderSectionHeader('ABOUT')}
         <View style={styles.settingsGroup}>
@@ -257,6 +265,12 @@ export function SettingsScreen({ onLogout }: SettingsScreenProps) {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Translation Settings Modal */}
+      <TranslationSettings
+        visible={showTranslationSettings}
+        onClose={() => setShowTranslationSettings(false)}
+      />
     </View>
   );
 }
